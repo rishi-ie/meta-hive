@@ -2,7 +2,7 @@ import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { Type } from "@sinclair/typebox";
 import path from "node:path";
 import fs from "node:fs/promises";
-import { execa } from "execa";
+import { spawn } from "node:child_process";
 
 export interface MetaHiveConfig {
   hivePath: string;
@@ -21,18 +21,33 @@ export interface ProfileInfo {
 
 const CONFIG_FILENAME = "hive-config.json";
 
-// Helper to run meta-hive CLI
-async function runMetaHive(args: string[], cwd: string): Promise<string> {
-  try {
-    const result = await execa("node", [
-      path.join("/Users/rishi/work/projects/meta-hive/dist/index.js"),
-      ...args
-    ], { cwd, extendEnv: true, env: { ...process.env } });
-    return result.stdout;
-  } catch (error: unknown) {
-    const err = error as { stderr?: string; message?: string };
-    return err.stderr || err.message || "Command failed";
-  }
+// Helper to run meta-hive CLI using spawn
+function runMetaHive(args: string[], cwd: string): Promise<string> {
+  return new Promise((resolve) => {
+    const child = spawn("node", ["/Users/rishi/work/projects/meta-hive/dist/index.js", ...args], {
+      cwd,
+      env: { ...process.env },
+    });
+
+    let stdout = "";
+    let stderr = "";
+
+    child.stdout?.on("data", (data) => {
+      stdout += data.toString();
+    });
+
+    child.stderr?.on("data", (data) => {
+      stderr += data.toString();
+    });
+
+    child.on("close", () => {
+      resolve(stderr || stdout);
+    });
+
+    child.on("error", () => {
+      resolve("Command failed");
+    });
+  });
 }
 
 async function getConfig(cwd: string): Promise<MetaHiveConfig | null> {
@@ -167,7 +182,7 @@ export default async function (pi: ExtensionAPI) {
     };
   });
 
-  // Register /meta-hive command with subcommands
+  // Register /meta-hive command
   pi.registerCommand("meta-hive", {
     description: "Meta-Hive commands: init, join, status, profiles, project, scan, leave",
     async handler(args, ctx) {
@@ -175,9 +190,18 @@ export default async function (pi: ExtensionAPI) {
       const subcommand = parts[0] || "";
       const subArgs = parts.slice(1).join(" ");
 
-      // No subcommand - show help
       if (!subcommand) {
-        ctx.ui.notify("Meta-Hive Commands:\n/meta-hive init\n/meta-hive join\n/meta-hive status\n/meta-hive profiles\n/meta-hive project add\n/meta-hive scan\n/meta-hive leave", "info");
+        ctx.ui.notify(
+          "Meta-Hive Commands:\n" +
+          "/meta-hive init - Create hive\n" +
+          "/meta-hive join <name> [projects] - Add profile\n" +
+          "/meta-hive status - Show status\n" +
+          "/meta-hive profiles - List profiles\n" +
+          "/meta-hive project add <name> - Add project\n" +
+          "/meta-hive scan - Scan hive (leader)\n" +
+          "/meta-hive leave - Leave hive",
+          "info"
+        );
         return;
       }
 
@@ -185,7 +209,7 @@ export default async function (pi: ExtensionAPI) {
         case "init": {
           ctx.ui.notify("Creating new hive...", "info");
           const output = await runMetaHive(["init", "--name", ".meta-hive", "--profile", "leader"], ctx.cwd);
-          ctx.ui.notify(output.includes("✅") ? "Hive created!" : output, "info");
+          ctx.ui.notify(output.includes("✅") ? "✅ Hive created!" : output, "info");
           break;
         }
         case "join": {
@@ -197,10 +221,8 @@ export default async function (pi: ExtensionAPI) {
           const profileName = joinParts[0];
           const projects = joinParts.slice(1);
 
-          // Find hive path
           let hivePath = currentHivePath || "";
           if (!hivePath) {
-            // Try to find .meta-hive in parent directories
             let checkPath = ctx.cwd;
             for (let i = 0; i < 5; i++) {
               const parentPath = path.dirname(checkPath);
@@ -226,17 +248,17 @@ export default async function (pi: ExtensionAPI) {
             args.push("--projects", ...projects);
           }
           const output = await runMetaHive(args, ctx.cwd);
-          ctx.ui.notify(output.includes("✅") ? `Profile "${profileName}" created!` : output, "info");
+          ctx.ui.notify(output.includes("✅") ? `✅ Profile "${profileName}" created!` : output, "info");
           break;
         }
         case "status": {
           const output = await runMetaHive(["status"], ctx.cwd);
-          ctx.ui.notify(output.substring(0, 200), "info");
+          ctx.ui.notify(output.substring(0, 300), "info");
           break;
         }
         case "profiles": {
           const output = await runMetaHive(["profiles"], ctx.cwd);
-          ctx.ui.notify(output.substring(0, 200), "info");
+          ctx.ui.notify(output.substring(0, 300), "info");
           break;
         }
         case "scan": {
@@ -245,7 +267,7 @@ export default async function (pi: ExtensionAPI) {
             return;
           }
           const output = await runMetaHive(["scan"], ctx.cwd);
-          ctx.ui.notify(output.includes("✅") ? "Scan complete!" : output, "info");
+          ctx.ui.notify(output.includes("✅") ? "✅ Scan complete!" : output, "info");
           break;
         }
         case "project": {
@@ -255,12 +277,12 @@ export default async function (pi: ExtensionAPI) {
 
           if (projectCmd === "add" && projectName) {
             const output = await runMetaHive(["project", "add", projectName], ctx.cwd);
-            ctx.ui.notify(output.includes("✅") ? `Project "${projectName}" created!` : output, "info");
+            ctx.ui.notify(output.includes("✅") ? `✅ Project "${projectName}" created!` : output, "info");
           } else if (projectCmd === "list") {
             const output = await runMetaHive(["project", "list"], ctx.cwd);
             ctx.ui.notify(output.substring(0, 200), "info");
           } else {
-            ctx.ui.notify("Usage: /meta-hive project add <name>\n       /meta-hive project list", "info");
+            ctx.ui.notify("Usage:\n/meta-hive project add <name>\n/meta-hive project list", "info");
           }
           break;
         }
@@ -270,18 +292,18 @@ export default async function (pi: ExtensionAPI) {
             return;
           }
           const output = await runMetaHive(["leave"], ctx.cwd);
-          ctx.ui.notify(output.includes("✅") ? "Left the hive!" : output, "info");
+          ctx.ui.notify(output.includes("✅") ? "✅ Left the hive!" : output, "info");
           break;
         }
         default:
-          ctx.ui.notify(`Unknown command: ${subcommand}\n\nCommands: init, join, status, profiles, project, scan, leave`, "error");
+          ctx.ui.notify(`Unknown: ${subcommand}\n\nUse /meta-hive for help`, "error");
       }
     },
   });
 
   // Register /profile command
   pi.registerCommand("profile", {
-    description: "Show and switch between hive profiles",
+    description: "Show and select hive profiles",
     async handler(_args, ctx) {
       if (!config || !currentHivePath) {
         ctx.ui.notify("Not connected to any hive. Run /meta-hive init first.", "error");
@@ -303,12 +325,7 @@ export default async function (pi: ExtensionAPI) {
           profileName === manifest.leader ? "leader" : "profiles",
           profileName
         );
-        const info = await getProfileInfo(
-          profilePath,
-          profileName,
-          profileName === manifest.leader,
-          config.profileName
-        );
+        const info = await getProfileInfo(profilePath, profileName, profileName === manifest.leader, config.profileName);
         if (info) {
           profileInfos.push(info);
           const badge = info.isLeader ? " 👑" : "";
@@ -318,10 +335,7 @@ export default async function (pi: ExtensionAPI) {
         }
       }
 
-      const choice = await ctx.ui.select(
-        `🐝 Hive Profiles (${manifest.profiles.length})`,
-        profileList
-      );
+      const choice = await ctx.ui.select(`🐝 Hive Profiles (${manifest.profiles.length})`, profileList);
 
       if (choice) {
         const selectedName = choice.split(" 👑")[0].split(" (you)")[0].trim();
@@ -362,7 +376,7 @@ export default async function (pi: ExtensionAPI) {
     },
   });
 
-  // Meta-Hive Tools
+  // Tools
   pi.registerTool({
     name: "meta_hive_status",
     label: "Hive Status",
@@ -392,11 +406,7 @@ export default async function (pi: ExtensionAPI) {
 
         status += `\n## All Profiles\n`;
         for (const profileName of manifest.profiles) {
-          const profilePath = path.join(
-            currentHivePath,
-            profileName === manifest.leader ? "leader" : "profiles",
-            profileName
-          );
+          const profilePath = path.join(currentHivePath, profileName === manifest.leader ? "leader" : "profiles", profileName);
           const info = await getProfileInfo(profilePath, profileName, profileName === manifest.leader, config.profileName);
           const badge = info?.isLeader ? " 👑" : "";
           const current = info?.isCurrent ? " ← you" : "";
