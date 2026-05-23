@@ -7,18 +7,61 @@
 
 ---
 
-## Quick Install
+## 🚀 Talk to pi - No Commands Needed!
+
+**Just tell pi what you want!** The skill understands natural language and runs everything for you.
 
 ```
-Install the meta-hive skill:
-1. First, create a hive: npx meta-hive init --name .meta-hive --profile leader
-2. Then add the skill: npx skills add https://github.com/rishi-ie/meta-hive --skill meta-hive
-3. For extension features: copy src/extension to ~/.pi/agent/extensions/meta-hive
+You: "Create a new hive for me"
+pi:  Runs meta-hive init for you ✓
+
+You: "Add a new profile called laptop"  
+pi:  Runs meta-hive join for you ✓
+
+You: "Set my project to my-app"
+pi:  Uses meta_hive_set_project tool ✓
+
+You: "Show me the hive status"
+pi:  Runs meta-hive status and shows you ✓
+
+You: "Create a new project called my-app"
+pi:  Runs meta-hive project add for you ✓
 ```
+
+**That's it!** No terminal commands needed. Just talk to pi like you're asking a friend.
+
+---
+
+## Quick Start
+
+### 1. Install the skill
+
+```bash
+npx skills add https://github.com/rishi-ie/meta-hive --skill meta-hive
+```
+
+### 2. Just tell pi what you want!
+
+| Say this to pi... | pi will do this... |
+|-------------------|---------------------|
+| "Create a new hive" | Creates `.meta-hive/` folder |
+| "Add a profile called laptop" | Joins hive as laptop profile |
+| "Set my active project to my-app" | Sets your project |
+| "Show hive status" | Shows all profiles & info |
+| "List all profiles" | Lists everyone in hive |
+| "Create a project called new-app" | Adds new project |
+| "Scan the hive" | Scans all profiles (leader) |
+| "I want to leave the hive" | Removes your profile |
+
+### 3. That's it!
+
+pi handles everything. You just talk.
+
+---
 
 ## What is Meta-Hive?
 
-Meta-hive connects multiple pi agent profiles through a shared folder, creating a collective intelligence system. Each profile has its own identity, memory, context, and capabilities.
+Meta-hive connects multiple pi agent profiles through a shared folder, creating a collective intelligence system.
 
 ```
 ┌─────────────────────────────────────┐
@@ -44,177 +87,146 @@ Meta-hive connects multiple pi agent profiles through a shared folder, creating 
 └─────────────────────────────────────┘
 ```
 
+---
+
 ## Features
 
-- **Multi-profile orchestration** - Connect multiple pi profiles
-- **Leader-based coordination** - One profile orchestrates the hive
-- **Shared memory** - Profiles share learnings through agentmemory
-- **Obsidian compatible** - All data in markdown, viewable in Obsidian
-- **pi Extension** - Full lifecycle hooks, custom tools, context injection
-- **CLI commands** - Easy management of hive and profiles
+- **🎤 Natural Language** - Just tell pi what you want
+- **🤖 Multi-profile orchestration** - Connect multiple pi profiles
+- **👑 Leader-based coordination** - One profile orchestrates the hive
+- **🧠 Shared memory** - Profiles share learnings through agentmemory
+- **📝 Obsidian compatible** - All data in markdown
+- **⚡ Fast setup** - Ready in seconds
 
-## Installation
+---
 
-### CLI Tool (Global)
+## Usage Examples
 
-```bash
-npm install -g meta-hive
+### "Create a new hive for me"
+```
+You → pi: "Create a new hive for me"
+pi → Runs: meta-hive init --name .meta-hive --profile leader
 ```
 
-### Use Without Install
+### "Add my laptop as a new profile"
+```
+You → pi: "Add my laptop as a new profile"  
+pi → Runs: meta-hive join /path/to/.meta-hive --profile laptop
+```
+
+### "Work on my-app project"
+```
+You → pi: "Set my active project to my-app"
+pi → Uses: meta_hive_set_project tool
+```
+
+### "How's the hive doing?"
+```
+You → pi: "Show me the hive status"
+pi → Runs: meta-hive status
+        meta-hive profiles
+```
+
+---
+
+## For Power Users
+
+### CLI Commands
+
+If you prefer terminal commands:
 
 ```bash
-npx meta-hive <command>
+npx meta-hive init --name .meta-hive --profile leader    # Create hive
+npx meta-hive join /path/to/.meta-hive --profile name    # Join hive
+npx meta-hive status                                     # Show status
+npx meta-hive profiles                                   # List profiles
+npx meta-hive project add <name>                         # Add project
+npx meta-hive scan                                       # Scan hive
+npx meta-hive leave                                      # Leave hive
 ```
 
 ### pi Extension
 
-Copy the extension to pi's extensions directory:
+For deeper integration, copy the extension:
 
 ```bash
-# Create extension directory
-mkdir -p ~/.pi/agent/extensions
-
-# Clone/copy the extension
-cp -r /path/to/meta-hive/src/extension ~/.pi/agent/extensions/meta-hive
+cp -r ~/.pi/agent/extensions/meta-hive
 ```
 
-The extension auto-discovers on pi startup and provides:
-- Hive context injection on session start
-- Custom tools (meta_hive_status, meta_hive_scan, etc.)
-- Custom commands (/hive-status, /hive-scan)
+This enables:
+- Hive context injection on every turn
+- Custom tools (meta_hive_status, etc.)
+- Auto-detection of hive connection
 
-### pi Skill
-
-```bash
-npx skills add https://github.com/rishi-ie/meta-hive --skill meta-hive
-```
-
-## Commands
-
-### CLI Commands
-
-```bash
-npx meta-hive init --name .meta-hive --profile leader    # Create new hive
-npx meta-hive join /path/to/.meta-hive --profile name   # Join existing hive
-npx meta-hive status                                      # Show hive status
-npx meta-hive profiles                                    # List all profiles
-npx meta-hive project add <name>                         # Add project
-npx meta-hive project list                               # List projects
-npx meta-hive scan                                       # Scan hive (leader)
-npx meta-hive leave                                      # Leave hive
-npx meta-hive human                                      # Human profile info
-```
-
-### pi Extension Tools
-
-When the extension is loaded, these tools are available:
-
-- `meta_hive_status` - Get current hive status
-- `meta_hive_scan` - Scan hive for insights (leader only)
-- `meta_hive_set_project` - Set active project
-- `meta_hive_list_profiles` - List all profiles
-
-### pi Extension Commands
-
-- `/hive-status` - Quick status check
-- `/hive-scan` - Trigger hive scan (leader)
+---
 
 ## Hive Structure
 
 ```
 .meta-hive/
 ├── .hive-manifest.json     # Registry of all profiles
-├── leader/                  # Leader profile
+├── leader/                  # Leader profile (you)
 │   ├── identity.md          # Identity & personality
 │   ├── system-prompt.md     # System instructions
-│   ├── memory/              # agentmemory
-│   ├── context/             # Working context
-│   ├── skills/              # Custom skills
-│   └── extensions/          # Extensions
+│   └── memory/              # agentmemory
 ├── profiles/                # Other profiles
-│   └── profile-name/
-│       ├── identity.md
-│       ├── system-prompt.md
-│       ├── memory/
-│       ├── context/
-│       ├── skills/
-│       └── extensions/
-├── human/                   # Human profile
+│   └── laptop/
+├── human/                   # Your profile
 │   ├── profile.md           # Your preferences
-│   └── feedback/             # Feedback files
-├── projects/               # Project workspaces
-│   └── project-name/
-└── shared/                 # Shared learnings
-    ├── skills/
-    └── learnings/
+│   └── feedback/            # Feedback files
+└── projects/               # Project workspaces
+    └── project-name/
 ```
 
-## Extension Behavior
+---
 
-### Session Lifecycle
+## Installation
 
-1. **session_start**: Loads hive config from `hive-config.json`
-2. **before_agent_start**: Injects hive context into agent prompts
-3. **Custom tools**: Available for LLM to call during conversation
-
-### Context Injection
-
-**Leader profile receives:**
-- Full hive overview
-- All profile identities
-- Active projects
-
-**Regular profiles receive:**
-- Their own identity
-- Active project context
-
-## For pi Users
-
-### Install as Skill
+### Option 1: Skill (Recommended)
 
 ```bash
 npx skills add https://github.com/rishi-ie/meta-hive --skill meta-hive
 ```
 
-Then use commands in your conversations:
-
-```
-/meta-hive status
-/meta-hive profiles
-/meta-hive scan
-/meta-hive project add my-project
-```
-
-### Install as Extension
+### Option 2: Global CLI
 
 ```bash
-cp -r ~/.pi/agent/extensions/meta-hive
-# Restart pi
+npm install -g meta-hive
 ```
 
-Use tools directly:
+### Option 3: Use Without Install
 
+```bash
+npx meta-hive <command>
 ```
-Use meta_hive_status to check the hive status
-Use meta_hive_scan to scan the hive
-```
+
+---
+
+## Quick Reference
+
+| What you want | Just say to pi |
+|---------------|----------------|
+| Create a hive | "Create a new hive" |
+| Add a profile | "Add a profile called [name]" |
+| Set project | "Set my project to [name]" |
+| Check status | "Show hive status" |
+| List profiles | "Show me all profiles" |
+| New project | "Create a project called [name]" |
+| Scan hive | "Scan the hive" (leader) |
+| Leave hive | "Leave the hive" |
+
+---
 
 ## How It Works
 
-1. **Create a hive** with `meta-hive init`
-2. **Install extension** by copying to `~/.pi/agent/extensions/`
-3. **Create profiles** on different devices with `meta-hive join`
-4. **Each profile works** on assigned projects
-5. **Leader monitors** and coordinates (you control everything)
-6. **Edit Obsidian files** to modify profiles and provide feedback
+1. **Tell pi** what you want to do
+2. **pi runs** the appropriate commands
+3. **Hive updates** with your changes
+4. **You're done!**
 
-## Key Concepts
+No memorization needed. pi handles the details.
 
-- **Profile**: A pi agent with its own identity, memory, and skills
-- **Leader**: Special profile you create - orchestrates the hive
-- **Human**: Your profile for preferences and feedback
-- **Projects**: Profiles work on projects, inferred from folder structure
+---
 
 ## Privacy
 
@@ -222,6 +234,8 @@ Use meta_hive_scan to scan the hive
 - Local folder-based
 - No cloud dependencies
 - All data in your control
+
+---
 
 ## License
 
