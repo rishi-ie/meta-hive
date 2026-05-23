@@ -281,6 +281,63 @@ You: Run: meta-hive project add my-app
 
 ---
 
+## Opening a Profile in pi
+
+**Each profile is connected via `hive-config.json` in their working directory.**
+
+To open a specific profile in pi:
+
+1. **Navigate to the directory** that has the profile's `hive-config.json`
+2. **Start pi in that directory**
+3. **pi auto-detects the profile** and shows: `Meta-Hive: profile-name@role`
+
+### Example:
+
+```
+User: I want to work as my laptop profile
+You: Navigate to your laptop's project folder (where hive-config.json exists)
+     Then start pi in that directory
+```
+
+### How it works:
+
+```
+/meta-hive-project/
+├── .meta-hive/              # Shared hive folder
+│   ├── profiles/
+│   │   └── laptop/
+│   └── ...
+├── hive-config.json         # Points to laptop profile
+└── my-code/
+
+/meta-hive-other-project/    # Different project, same hive
+├── hive-config.json         # Points to laptop profile
+└── code/
+```
+
+**Both folders point to the same `laptop` profile in the hive.**
+
+### To switch profiles:
+
+1. **Close current pi session**
+2. **Navigate to a different directory** with a different `hive-config.json`
+3. **Start new pi session**
+4. **pi shows the new profile!**
+
+### Profile Directories:
+
+When you join a hive, `hive-config.json` is created in your **current working directory**.
+
+```
+~/projects/app-a/          → hive-config.json points to "laptop" profile
+~/projects/app-b/          → hive-config.json points to "laptop" profile  
+~/projects/server-work/     → hive-config.json points to "server" profile
+```
+
+**One profile can work on multiple projects.** Just open pi in the project directory you want to work on.
+
+---
+
 ## Configuration
 
 Each profile has a `hive-config.json` in their working directory:
@@ -293,6 +350,8 @@ Each profile has a `hive-config.json` in their working directory:
   "activeProject": "my-project"
 }
 ```
+
+**To switch profiles:** Open pi in a directory with a different `hive-config.json`.
 
 ---
 

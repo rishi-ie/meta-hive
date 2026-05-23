@@ -228,6 +228,27 @@ No memorization needed. pi handles the details.
 
 ---
 
+## Opening a Profile in pi
+
+**Each profile connects via `hive-config.json` in their working directory.**
+
+To open a profile:
+1. Navigate to the directory with `hive-config.json`
+2. Start pi in that directory
+3. pi auto-detects the profile
+
+```
+Project A/                    Project B/
+├── hive-config.json  (laptop) ├── hive-config.json (laptop)
+└── code/                     └── code/
+```
+
+**Same profile, different projects.** Just open pi in the folder you want to work on.
+
+To switch profiles: Open pi in a directory with a different `hive-config.json`.
+
+---
+
 ## Privacy
 
 - Single user control

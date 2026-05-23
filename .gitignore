@@ -31,4 +31,5 @@ coverage/
 
 # Temp files
 tmp/
-temp/
+temp/.meta-hive
+hive-config.json
