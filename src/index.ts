@@ -6,7 +6,8 @@ import { joinHive } from './commands/join.js';
 import { showStatus } from './commands/status.js';
 import { showProfiles } from './commands/profiles.js';
 import { leaveHive } from './commands/leave.js';
-import { createProject, showProjects, listProjects } from './commands/project.js';
+import { createProject, showProjects } from './commands/project.js';
+import { showHumanProfile } from './commands/human.js';
 import pc from 'picocolors';
 
 const program = new Command();
@@ -96,6 +97,19 @@ program
     }
   });
 
+// human command
+program
+  .command('human')
+  .description('Show human profile info')
+  .action(async () => {
+    try {
+      await showHumanProfile();
+    } catch (error) {
+      console.error(pc.red('Error showing human profile:'), error);
+      process.exit(1);
+    }
+  });
+
 // project subcommand
 const projectCmd = program
   .command('project')
@@ -107,8 +121,7 @@ projectCmd
   .description('Add a new project to the hive')
   .action(async (name) => {
     try {
-      const { loadConfig } = await import('./hive/config.js');
-      const config = await loadConfig();
+      const config = await import('./hive/config.js').then(m => m.loadConfig());
       if (!config?.hivePath) {
         console.log(pc.red('❌ Not connected to any hive.'));
         return;
@@ -133,6 +146,42 @@ projectCmd
       await showProjects();
     } catch (error) {
       console.error(pc.red('Error listing projects:'), error);
+      process.exit(1);
+    }
+  });
+
+// Scan command - leader scans the hive
+program
+  .command('scan')
+  .description('Scan the hive (leader only)')
+  .action(async () => {
+    try {
+      const { scanHive } = await import('./hive/scanner.js');
+      const { loadConfig } = await import('./hive/config.js');
+      const config = await loadConfig();
+
+      if (!config?.hivePath) {
+        console.log(pc.red('❌ Not connected to any hive.'));
+        return;
+      }
+
+      const result = await scanHive(config.hivePath);
+
+      console.log(pc.bold(pc.blue('\n=== Hive Scan Results ===')));
+      console.log();
+      console.log(pc.bold('Profiles:'), result.profiles.length);
+      console.log(pc.bold('Projects:'), result.projects.length);
+      console.log(pc.bold('Scan Time:'), new Date(result.lastScan).toLocaleString());
+      console.log();
+
+      if (result.insights && result.insights.length > 0) {
+        console.log(pc.bold('Insights:'));
+        for (const insight of result.insights) {
+          console.log(`  💡 ${insight}`);
+        }
+      }
+    } catch (error) {
+      console.error(pc.red('Error scanning hive:'), error);
       process.exit(1);
     }
   });

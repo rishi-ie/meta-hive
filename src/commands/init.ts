@@ -2,7 +2,7 @@ import pc from 'picocolors';
 import { createManifest, addProfileToManifest } from '../hive/manifest.js';
 import { createProfile, getProfileDirectory } from '../profile/creator.js';
 import { updateConfig } from '../hive/config.js';
-import { fileExists, mkdir } from '../utils/fileSystem.js';
+import { fileExists, mkdir, writeMarkdownFile } from '../utils/fileSystem.js';
 import path from 'path';
 
 export interface InitOptions {
@@ -33,6 +33,24 @@ export async function initHive(options: InitOptions = {}): Promise<void> {
   await mkdir(path.join(hivePath, 'human', 'feedback'), { recursive: true });
   await mkdir(path.join(hivePath, 'shared', 'skills'), { recursive: true });
   await mkdir(path.join(hivePath, 'shared', 'learnings'), { recursive: true });
+
+  // Create human profile template
+  const humanProfileContent = `# Human Profile
+
+## Name
+[Your name]
+
+## Preferences
+- [List your coding preferences]
+- [List your communication preferences]
+
+## Context
+[Any relevant context about you]
+
+## Notes
+[Additional notes for the hive]
+`;
+  await writeMarkdownFile(path.join(hivePath, 'human', 'profile.md'), humanProfileContent);
 
   // Create leader profile
   const leaderIdentity = {
