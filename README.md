@@ -9,12 +9,12 @@
 
 ## Quick Install
 
-Copy and paste this prompt to install meta-hive:
+Copy and paste this prompt to install meta-hive as a pi skill:
 
 ```
 Install the meta-hive skill:
-1. Run: npx meta-hive init --name .meta-hive --profile leader
-2. Then run: npx skills add /Users/rishi/work/projects/meta-hive --skill meta-hive
+1. First, create a hive: npx meta-hive init --name .meta-hive --profile leader
+2. Then add the skill: npx skills add https://github.com/rishi-ie/meta-hive --skill meta-hive
 ```
 
 ## What is Meta-Hive?
@@ -55,11 +55,13 @@ Meta-hive connects multiple pi agent profiles through a shared folder, creating 
 
 ## Installation
 
+### Global Install (CLI)
+
 ```bash
 npm install -g meta-hive
 ```
 
-Or use without installation:
+### Use Without Install
 
 ```bash
 npx meta-hive <command>
@@ -70,7 +72,7 @@ npx meta-hive <command>
 ### `init` - Create a new hive
 
 ```bash
-meta-hive init --name .meta-hive --profile leader
+npx meta-hive init --name .meta-hive --profile leader
 ```
 
 Creates a new hive with:
@@ -84,7 +86,7 @@ Creates a new hive with:
 ### `join` - Join an existing hive
 
 ```bash
-meta-hive join /path/to/.meta-hive --profile my-laptop --projects my-app
+npx meta-hive join /path/to/.meta-hive --profile my-laptop --projects my-app
 ```
 
 Creates your profile in the hive.
@@ -92,7 +94,7 @@ Creates your profile in the hive.
 ### `status` - Show hive status
 
 ```bash
-meta-hive status
+npx meta-hive status
 ```
 
 Shows:
@@ -104,10 +106,33 @@ Shows:
 ### `profiles` - List profiles
 
 ```bash
-meta-hive profiles
+npx meta-hive profiles
 ```
 
 Lists all profiles with their details.
+
+### `project` - Manage projects
+
+```bash
+npx meta-hive project add <name>    # Add a project
+npx meta-hive project list          # List projects
+```
+
+### `scan` - Scan hive (leader only)
+
+```bash
+npx meta-hive scan
+```
+
+Scans all profiles and generates hive insights.
+
+### `leave` - Leave the hive
+
+```bash
+npx meta-hive leave
+```
+
+Removes your profile from the hive.
 
 ## Hive Structure
 
@@ -123,22 +148,38 @@ Lists all profiles with their details.
 │   └── extensions/          # Extensions
 ├── profiles/                # Other profiles
 │   └── profile-name/
+│       ├── identity.md
+│       ├── system-prompt.md
+│       ├── memory/
+│       ├── context/
+│       ├── skills/
+│       └── extensions/
 ├── human/                   # Human profile
-│   ├── profile.md
-│   └── feedback/
-└── projects/               # Project workspaces
-    └── project-name/
+│   ├── profile.md           # Your preferences
+│   └── feedback/             # Feedback files
+├── projects/               # Project workspaces
+│   └── project-name/
+└── shared/                 # Shared learnings
+    ├── skills/
+    └── learnings/
 ```
 
 ## For pi Users
 
-Add to your pi skills to use meta-hive commands directly:
+### Install as Skill
 
 ```bash
-npx skills add /path/to/meta-hive --skill meta-hive
+npx skills add https://github.com/rishi-ie/meta-hive --skill meta-hive
 ```
 
-Then use commands like `/meta-hive status` in your conversations.
+Then use meta-hive commands directly in your conversations:
+
+```
+/meta-hive status
+/meta-hive profiles
+/meta-hive scan
+/meta-hive project add my-project
+```
 
 ## How It Works
 
@@ -147,6 +188,13 @@ Then use commands like `/meta-hive status` in your conversations.
 3. **Each profile works** on assigned projects
 4. **Leader monitors** and coordinates (you control everything)
 5. **Edit Obsidian files** to modify profiles and provide feedback
+
+## Key Concepts
+
+- **Profile**: A pi agent with its own identity, memory, and skills
+- **Leader**: Special profile you create - orchestrates the hive
+- **Human**: Your profile for preferences and feedback
+- **Projects**: Profiles work on projects, inferred from folder structure
 
 ## Privacy
 
