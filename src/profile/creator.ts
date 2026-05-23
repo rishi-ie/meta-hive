@@ -142,9 +142,11 @@ export async function loadProfile(hivePath: string, profileName: string): Promis
 }
 
 function parseIdentityFromMarkdown(content: string, defaultName: string): ProfileIdentity {
-  const lines = content.split('\n');
+  const lines = content.split('\n').filter(l => l.trim());
   const name = lines[0]?.replace(/^#\s*/, '').trim() || defaultName;
-  const description = lines.slice(2, 5).join(' ').trim() || 'A coding agent profile.';
+  
+  // Get description (first paragraph after title)
+  const description = lines.slice(1).find(l => !l.startsWith('#') && !l.startsWith('##') && l.trim())?.trim() || 'A coding agent profile.';
 
   return {
     name,

@@ -5,6 +5,8 @@ import { initHive } from './commands/init.js';
 import { joinHive } from './commands/join.js';
 import { showStatus } from './commands/status.js';
 import { showProfiles } from './commands/profiles.js';
+import { leaveHive } from './commands/leave.js';
+import { createProject, showProjects, listProjects } from './commands/project.js';
 import pc from 'picocolors';
 
 const program = new Command();
@@ -77,6 +79,60 @@ program
       await showProfiles();
     } catch (error) {
       console.error(pc.red('Error listing profiles:'), error);
+      process.exit(1);
+    }
+  });
+
+// leave command
+program
+  .command('leave')
+  .description('Leave the current hive')
+  .action(async () => {
+    try {
+      await leaveHive();
+    } catch (error) {
+      console.error(pc.red('Error leaving hive:'), error);
+      process.exit(1);
+    }
+  });
+
+// project subcommand
+const projectCmd = program
+  .command('project')
+  .description('Manage projects in the hive');
+
+// project add
+projectCmd
+  .command('add <name>')
+  .description('Add a new project to the hive')
+  .action(async (name) => {
+    try {
+      const { loadConfig } = await import('./hive/config.js');
+      const config = await loadConfig();
+      if (!config?.hivePath) {
+        console.log(pc.red('❌ Not connected to any hive.'));
+        return;
+      }
+      await createProject({
+        hivePath: config.hivePath,
+        projectName: name,
+        profileName: config.profileName,
+      });
+    } catch (error) {
+      console.error(pc.red('Error creating project:'), error);
+      process.exit(1);
+    }
+  });
+
+// project list
+projectCmd
+  .command('list')
+  .description('List all projects in the hive')
+  .action(async () => {
+    try {
+      await showProjects();
+    } catch (error) {
+      console.error(pc.red('Error listing projects:'), error);
       process.exit(1);
     }
   });
