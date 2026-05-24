@@ -7,20 +7,19 @@
 >
 > 1. git clone https://github.com/rishi-ie/meta-hive ~/meta-hive
 >
-> 2. cd ~/meta-hive && npm install && npm link
+> 2. cd ~/meta-hive && npm install && npm link && npm run build
 >
-> 3. cd ~/meta-hive && npm run build
+> 3. mkdir -p ~/.pi/agent/extensions && cp -r ~/meta-hive/src/extension ~/.pi/agent/extensions/meta-hive
 >
-> 4. meta-hive init --name .meta-hive --profile leader
+> 4. mkdir ~/hive && cd ~/hive && meta-hive init --name .meta-hive --profile leader
 >
-> 5. Create a folder for your leader terminal: mkdir ~/hive && cd ~/hive
+> 5. cd ~/hive && cat > hive-config.json << 'EOF'
+> {"profileName":"leader","hivePath":".meta-hive","isLeader":true,"projects":[],"activeProject":null}
+> EOF
 >
-> 6. Create hive-config.json in ~/hive with:
->    {"profileName":"leader","hivePath":"~/.meta-hive","isLeader":true,"projects":[],"activeProject":null}
+> 6. Reload pi: /reload
 >
-> 7. Reload pi: /reload
->
-> Done! Now you can run /dashboard in pi.
+> Done! Run /dashboard or /new-project web-app in pi.
 > ```
 
 ---
@@ -52,7 +51,7 @@ Multi-agent orchestration for [pi](https://github.com/earendil-works/pi-coding-a
 
 ## Setup (step by step)
 
-### 1. Install meta-hive
+### 1. Install meta-hive CLI
 
 ```bash
 git clone https://github.com/rishi-ie/meta-hive ~/meta-hive
@@ -62,7 +61,16 @@ npm link
 npm run build
 ```
 
-### 2. Create your hive folder
+### 2. Install pi extension
+
+```bash
+mkdir -p ~/.pi/agent/extensions
+cp -r ~/meta-hive/src/extension ~/.pi/agent/extensions/meta-hive
+```
+
+This copies the extension to pi's extension folder so the commands load automatically.
+
+### 3. Create your hive folder
 
 ```bash
 mkdir ~/hive
@@ -72,9 +80,7 @@ meta-hive init --name .meta-hive --profile leader
 
 This creates `.meta-hive/` in your home directory.
 
-### 3. Configure leader terminal
-
-Create a config file so pi knows you're the leader:
+### 4. Configure leader terminal
 
 ```bash
 cd ~/hive
@@ -89,7 +95,7 @@ cat > hive-config.json << 'EOF'
 EOF
 ```
 
-### 4. Reload pi
+### 5. Reload pi
 
 ```
 /reload
