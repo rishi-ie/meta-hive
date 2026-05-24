@@ -1,13 +1,27 @@
 # 🐝 meta-hive
 
-> **One-line setup.** Copy and paste this into your agent:
-
-```
-Install and setup meta-hive for pi:
-1. Run: git clone https://github.com/rishi-ie/meta-hive ~/meta-hive && cd ~/meta-hive && npm link
-2. Run: meta-hive init --name .meta-hive --profile leader
-3. Extension auto-loads. Start pi in the leader folder.
-```
+> **Setup prompt - copy and paste into your agent:**
+>
+> ```
+> Install and setup meta-hive for pi coding agent:
+>
+> 1. git clone https://github.com/rishi-ie/meta-hive ~/meta-hive
+>
+> 2. cd ~/meta-hive && npm install && npm link
+>
+> 3. cd ~/meta-hive && npm run build
+>
+> 4. meta-hive init --name .meta-hive --profile leader
+>
+> 5. Create a folder for your leader terminal: mkdir ~/hive && cd ~/hive
+>
+> 6. Create hive-config.json in ~/hive with:
+>    {"profileName":"leader","hivePath":"~/.meta-hive","isLeader":true,"projects":[],"activeProject":null}
+>
+> 7. Reload pi: /reload
+>
+> Done! Now you can run /dashboard in pi.
+> ```
 
 ---
 
@@ -20,8 +34,8 @@ Multi-agent orchestration for [pi](https://github.com/earendil-works/pi-coding-a
 ```
 ┌────────────────────────────────────────────────────────────┐
 │  LEADER (you)                                              │
-│  cd leader-folder && pi                                   │
-│  /dashboard → sees all projects + profiles                │
+│  cd ~/hive && pi                                           │
+│  /dashboard → sees all projects + profiles                 │
 └────────────────────────────────────────────────────────────┘
         │
         ├── web-app ──────────── frontend profile (cd web-app && pi)
@@ -36,22 +50,50 @@ Multi-agent orchestration for [pi](https://github.com/earendil-works/pi-coding-a
 
 ---
 
-## Quick start
+## Setup (step by step)
+
+### 1. Install meta-hive
 
 ```bash
-# 1. Install
 git clone https://github.com/rishi-ie/meta-hive ~/meta-hive
-cd ~/meta-hive && npm link
-
-# 2. Create hive
-meta-hive init --name .meta-hive --profile leader
-
-# 3. Open pi in the leader folder
-cd leader-folder  # or wherever you want to monitor from
-pi
+cd ~/meta-hive
+npm install
+npm link
+npm run build
 ```
 
-The extension auto-loads. No linking needed.
+### 2. Create your hive folder
+
+```bash
+mkdir ~/hive
+cd ~/hive
+meta-hive init --name .meta-hive --profile leader
+```
+
+This creates `.meta-hive/` in your home directory.
+
+### 3. Configure leader terminal
+
+Create a config file so pi knows you're the leader:
+
+```bash
+cd ~/hive
+cat > hive-config.json << 'EOF'
+{
+  "profileName": "leader",
+  "hivePath": ".meta-hive",
+  "isLeader": true,
+  "projects": [],
+  "activeProject": null
+}
+EOF
+```
+
+### 4. Reload pi
+
+```
+/reload
+```
 
 ---
 
@@ -67,12 +109,28 @@ pi:  /new-project web-app
 Profile "web-app" is dedicated.
 
 To work on it:
-1. New terminal
-2. cd to web-app folder
-3. Start pi
+1. cd ~/web-app
+2. Start pi
 ```
 
 ### 2. Work on the project (profile terminal)
+
+```bash
+mkdir -p ~/web-app
+cd ~/web-app
+
+cat > hive-config.json << 'EOF'
+{
+  "profileName": "web-app",
+  "hivePath": ".meta-hive",
+  "isLeader": false,
+  "projects": ["web-app"],
+  "activeProject": "web-app"
+}
+EOF
+```
+
+Then start pi: `pi`
 
 ```
 You: "What am I working on?"
@@ -92,28 +150,27 @@ pi:  /dashboard
 HIVE DASHBOARD
 ----------------
 
-Projects: 3
-Profiles: 4
+Projects: 1
+Profiles: 1
 
 [active] web-app
    Profiles: web-app
-
-[active] api-service
-   Profiles: backend
 ```
 
-### 4. Profile switching
+---
+
+## Profile switching
 
 Each profile is in its own directory:
 
 ```bash
-~/leader/        → pi → Leader (monitoring)
+~/hive/          → pi → Leader (monitoring)
 ~/web-app/       → pi → web-app profile
 ~/api-service/   → pi → backend profile
 ~/ios-app/       → pi → mobile profile
 ```
 
-To switch: `cd` to that directory and start pi.
+To switch: `cd` to that directory, create `hive-config.json`, and start pi.
 
 ---
 
@@ -121,7 +178,7 @@ To switch: `cd` to that directory and start pi.
 
 | Command | Who | What |
 |---------|-----|------|
-| `/new-project <name> [profile]` | Leader | Create project + profile |
+| `/new-project <name>` | Leader | Create project + profile |
 | `/dashboard` | Leader | See all projects + profiles |
 | `/projects` | All | List your projects |
 | `/profiles` | All | List all profiles |
@@ -159,6 +216,10 @@ To switch: `cd` to that directory and start pi.
 ├── human/                  # Your preferences
 └── shared/                 # Shared knowledge
 ```
+
+Each profile directory has:
+- `identity.md` - Who this profile is
+- `projects.json` - Assigned projects
 
 ---
 
