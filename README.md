@@ -1,5 +1,16 @@
 # 🐝 meta-hive
 
+> **One-line setup.** Copy and paste this into your agent:
+
+```
+Install and setup meta-hive for pi:
+1. Run: git clone https://github.com/rishi-ie/meta-hive ~/meta-hive && cd ~/meta-hive && npm link
+2. Run: meta-hive init --name .meta-hive --profile leader
+3. Extension auto-loads. Start pi in the leader folder.
+```
+
+---
+
 Multi-agent orchestration for [pi](https://github.com/earendil-works/pi-coding-agent). Manage projects with dedicated profiles - each project its own context, no switching.
 
 ---
@@ -29,8 +40,8 @@ Multi-agent orchestration for [pi](https://github.com/earendil-works/pi-coding-a
 
 ```bash
 # 1. Install
-git clone https://github.com/rishi-ie/meta-hive
-cd meta-hive && npm link
+git clone https://github.com/rishi-ie/meta-hive ~/meta-hive
+cd ~/meta-hive && npm link
 
 # 2. Create hive
 meta-hive init --name .meta-hive --profile leader
