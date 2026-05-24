@@ -1,44 +1,20 @@
-import pc from 'picocolors';
-import { loadConfig } from '../hive/config.js';
-import { readJsonFile, writeJsonFile } from '../utils/fileSystem.js';
-import path from 'path';
+import fs from "node:fs/promises";
+import path from "node:path";
+import { findHivePath } from "../utils/fileSystem.js";
 
-export async function getHumanProfile(hivePath: string): Promise<{
-  name: string;
-  preferences: string[];
-  feedback: string[];
-} | null> {
-  const profilePath = path.join(hivePath, 'human', 'profile.md');
-  const feedbackDir = path.join(hivePath, 'human', 'feedback');
-
-  return {
-    name: 'Human',
-    preferences: [],
-    feedback: [],
-  };
-}
-
-export async function showHumanProfile(): Promise<void> {
-  const config = await loadConfig();
-
-  if (!config?.hivePath) {
-    console.log(pc.red('❌ Not connected to any hive.'));
+export async function humanCommand(): Promise<void> {
+  const hivePath = await findHivePath(process.cwd());
+  if (!hivePath) {
+    console.log("❌ Not in a hive.");
     return;
   }
 
-  const profilePath = path.join(config.hivePath, 'human', 'profile.md');
-  const feedbackDir = path.join(config.hivePath, 'human', 'feedback');
-
-  console.log(pc.bold(pc.blue('\n=== Human Profile ===')));
-  console.log();
-  console.log(pc.bold('Location:'), path.join(config.hivePath, 'human'));
-  console.log();
-  console.log(pc.cyan('Edit these files in Obsidian:'));
-  console.log('  • profile.md - Your preferences and context');
-  console.log('  • feedback/ - Folder for feedback files');
-  console.log();
-  console.log(pc.bold('Tips:'));
-  console.log('  • Add preferences in profile.md');
-  console.log('  • Create feedback files to share with the hive');
-  console.log('  • The leader will read your feedback');
+  const humanPath = path.join(hivePath, "human", "profile.md");
+  try {
+    const content = await fs.readFile(humanPath, "utf-8");
+    console.log("=== Human Profile ===\n");
+    console.log(content);
+  } catch {
+    console.log("Human profile not found.");
+  }
 }

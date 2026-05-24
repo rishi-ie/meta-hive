@@ -1,68 +1,56 @@
-import { readFile, writeFile, mkdir, readdir, stat, rm } from 'fs/promises';
-import { existsSync } from 'fs';
-import path from 'path';
+import fs from "node:fs/promises";
+import path from "node:path";
 
-export { mkdir };
-
-export async function fileExists(filepath: string): Promise<boolean> {
-  return existsSync(filepath);
+export async function readJsonFile(filePath: string): Promise<unknown> {
+  const content = await fs.readFile(filePath, "utf-8");
+  return JSON.parse(content);
 }
 
-export async function readJsonFile<T>(filepath: string): Promise<T | null> {
-  try {
-    const content = await readFile(filepath, 'utf-8');
-    return JSON.parse(content) as T;
-  } catch {
-    return null;
-  }
+export async function writeJsonFile(filePath: string, data: unknown): Promise<void> {
+  await fs.writeFile(filePath, JSON.stringify(data, null, 2));
 }
 
-export async function writeJsonFile(filepath: string, data: unknown): Promise<void> {
-  const dir = path.dirname(filepath);
-  await mkdir(dir, { recursive: true });
-  await writeFile(filepath, JSON.stringify(data, null, 2), 'utf-8');
+export async function readMarkdownFile(filePath: string): Promise<string> {
+  return await fs.readFile(filePath, "utf-8");
 }
 
-export async function readMarkdownFile(filepath: string): Promise<string | null> {
-  try {
-    return await readFile(filepath, 'utf-8');
-  } catch {
-    return null;
-  }
-}
-
-export async function writeMarkdownFile(filepath: string, content: string): Promise<void> {
-  const dir = path.dirname(filepath);
-  await mkdir(dir, { recursive: true });
-  await writeFile(filepath, content, 'utf-8');
+export async function writeMarkdownFile(filePath: string, content: string): Promise<void> {
+  await fs.writeFile(filePath, content, "utf-8");
 }
 
 export async function listDirectories(dirPath: string): Promise<string[]> {
   try {
-    const entries = await readdir(dirPath, { withFileTypes: true });
-    return entries.filter(entry => entry.isDirectory()).map(entry => entry.name);
+    const entries = await fs.readdir(dirPath, { withFileTypes: true });
+    return entries.filter(e => e.isDirectory()).map(e => e.name);
   } catch {
     return [];
   }
 }
 
-export async function getFileModifiedTime(filepath: string): Promise<string | null> {
-  try {
-    const stats = await stat(filepath);
-    return stats.mtime.toISOString();
-  } catch {
-    return null;
+export async function findHivePath(cwd: string): Promise<string | null> {
+  let checkPath = cwd;
+  for (let i = 0; i < 10; i++) {
+    const hivePath = path.join(checkPath, ".meta-hive");
+    try {
+      await fs.access(hivePath);
+      return hivePath;
+    } catch {}
+    const parent = path.dirname(checkPath);
+    if (parent === checkPath) break;
+    checkPath = parent;
   }
+  return null;
 }
 
-export async function deleteDirectory(dirPath: string): Promise<void> {
-  try {
-    await rm(dirPath, { recursive: true, force: true });
-  } catch {
-    // Ignore errors
-  }
+export async function ensureDir(dirPath: string): Promise<void> {
+  await fs.mkdir(dirPath, { recursive: true });
 }
 
-export function joinPath(...parts: string[]): string {
-  return path.join(...parts);
+export async function fileExists(filePath: string): Promise<boolean> {
+  try {
+    await fs.access(filePath);
+    return true;
+  } catch {
+    return false;
+  }
 }

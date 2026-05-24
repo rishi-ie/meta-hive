@@ -1,88 +1,97 @@
-import pc from 'picocolors';
-import { loadManifest, addProfileToManifest } from '../hive/manifest.js';
-import { createProfile } from '../profile/creator.js';
-import { updateConfig } from '../hive/config.js';
-import { fileExists, mkdir } from '../utils/fileSystem.js';
-import path from 'path';
+import fs from "node:fs/promises";
+import path from "node:path";
+import { loadManifest, addProfileToManifest, addProjectToManifest } from "../hive/manifest.js";
 
-export interface JoinOptions {
-  hivePath: string;
-  profileName: string;
-  identity?: string;
+interface JoinOptions {
+  profile?: string;
+  description?: string;
   projects?: string[];
 }
 
-export async function joinHive(options: JoinOptions): Promise<void> {
-  const { hivePath: inputPath, profileName, identity, projects = [] } = options;
+export async function joinCommand(hivePath: string, options: JoinOptions): Promise<void> {
+  // Resolve hive path
+  const resolvedHive = path.isAbsolute(hivePath)
+    ? hivePath
+    : path.resolve(hivePath);
 
-  const hivePath = path.resolve(inputPath);
+  // Check hive exists
+  try {
+    await fs.access(resolvedHive);
+  } catch {
+    console.log(`❌ Hive not found at ${resolvedHive}`);
+    console.log("Run: /meta-hive init first");
+    return;
+  }
 
-  // Verify hive exists
-  const manifest = await loadManifest(hivePath);
+  const manifest = await loadManifest(resolvedHive);
   if (!manifest) {
-    console.log(pc.red(`❌ No hive found at ${hivePath}`));
-    console.log(pc.gray('  Run `meta-hive init` first to create a hive.'));
+    console.log("❌ Invalid hive structure");
     return;
   }
 
-  // Check if profile already exists
+  // Get options
+  const profileName = options.profile;
+  const description = options.description || `Profile working on: ${(options.projects || []).join(", ") || "hive tasks"}`;
+
+  if (!profileName) {
+    console.log("❌ Profile name required. Use: --profile <name>");
+    return;
+  }
+
+  // Check profile doesn't exist
   if (manifest.profiles.includes(profileName)) {
-    console.log(pc.yellow(`⚠ Profile "${profileName}" already exists in the hive.`));
-    console.log(pc.gray('  Update your config to connect as this profile.'));
-    await updateConfig({
-      hivePath,
-      profileName,
-      isLeader: false,
-      activeProject: null,
-    });
+    console.log(`❌ Profile "${profileName}" already exists`);
     return;
   }
 
-  console.log(pc.blue('🔗 Joining Meta-Hive...'));
-  console.log();
+  console.log(`🔗 Creating profile "${profileName}"...\n`);
 
-  // Create profile directories
-  await mkdir(path.join(hivePath, 'profiles', profileName), { recursive: true });
+  // Create profile directory
+  const profilePath = path.join(resolvedHive, "profiles", profileName);
+  await fs.mkdir(profilePath, { recursive: true });
 
-  // Create profile identity
-  const profileIdentity = {
-    name: profileName,
-    description: identity || `A coding agent profile in the ${hivePath} hive.`,
-    personality: 'Diligent and helpful. Works on assigned projects.',
-    capabilities: ['Coding assistance', 'Project work'],
-  };
+  // Create profile files
+  await fs.writeFile(
+    path.join(profilePath, "identity.md"),
+    `# ${profileName}\n\n${description}`
+  );
 
-  await createProfile({
-    hivePath,
-    profileName,
-    isLeader: false,
-    identity: profileIdentity,
-    projects,
-  });
+  await fs.writeFile(
+    path.join(profilePath, "projects.json"),
+    JSON.stringify(options.projects || [])
+  );
 
-  // Register in manifest
-  await addProfileToManifest(hivePath, profileName);
+  await fs.writeFile(
+    path.join(profilePath, "system-prompt.md"),
+    `You are ${profileName}, a dedicated profile in the Meta-Hive. You work on assigned projects with full focus and context.`
+  );
 
-  // Save config
-  await updateConfig({
-    hivePath,
-    profileName,
-    isLeader: false,
-    activeProject: projects[0] || null,
-  });
+  // Create project directories if they don't exist
+  for (const projectName of (options.projects || [])) {
+    const projectPath = path.join(resolvedHive, "projects", projectName);
+    try {
+      await fs.access(projectPath);
+    } catch {
+      await fs.mkdir(projectPath, { recursive: true });
+      await fs.writeFile(
+        path.join(projectPath, "context.md"),
+        `# ${projectName}\n\nProject workspace.\n`
+      );
+    }
 
-  console.log(pc.green('✅ Successfully joined the hive!'));
-  console.log();
-  console.log(pc.bold('Your Profile:'));
-  console.log(`  ${pc.cyan(profileName)}`);
-  console.log(`  Hive: ${hivePath}`);
-  console.log();
-  if (projects.length > 0) {
-    console.log(`  Projects: ${projects.join(', ')}`);
+    // Add project to manifest if not exists
+    if (!manifest.projects.find(p => p.name === projectName)) {
+      await addProjectToManifest(resolvedHive, projectName, [profileName]);
+    }
   }
-  console.log();
-  console.log(pc.cyan('Next steps:'));
-  console.log('  1. Open the hive folder in Obsidian to see your profile');
-  console.log('  2. Run: meta-hive status');
-  console.log('  3. Start working on your projects!');
+
+  // Add profile to manifest
+  await addProfileToManifest(resolvedHive, profileName);
+
+  console.log(`✅ Profile "${profileName}" created!\n`);
+  console.log(`Hive: ${resolvedHive}`);
+  console.log(`Projects: ${(options.projects || []).join(", ") || "none"}`);
+  console.log("\nTo connect:");
+  console.log(`1. cd to your working directory`);
+  console.log(`2. Run: meta-hive join ${resolvedHive} --profile ${profileName}`);
 }

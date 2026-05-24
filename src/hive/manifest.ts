@@ -1,82 +1,98 @@
-import { HiveManifest } from '../types/index.js';
-import { readJsonFile, writeJsonFile, fileExists } from '../utils/fileSystem.js';
-import path from 'path';
+import fs from "node:fs/promises";
+import path from "node:path";
 
-const MANIFEST_FILENAME = '.hive-manifest.json';
+export interface HiveManifest {
+  version: string;
+  leader: string;
+  profiles: string[];
+  projects: ProjectInfo[];
+  created: string;
+  lastScan: string;
+}
 
-export async function getManifestPath(hivePath: string): Promise<string> {
-  return path.join(hivePath, MANIFEST_FILENAME);
+export interface ProjectInfo {
+  name: string;
+  profiles: string[];
+  created: string;
+  status: "active" | "paused" | "completed";
 }
 
 export async function loadManifest(hivePath: string): Promise<HiveManifest | null> {
-  const manifestPath = await getManifestPath(hivePath);
-  if (!(await fileExists(manifestPath))) {
+  const manifestPath = path.join(hivePath, ".hive-manifest.json");
+  try {
+    const content = await fs.readFile(manifestPath, "utf-8");
+    return JSON.parse(content);
+  } catch {
     return null;
   }
-  return readJsonFile<HiveManifest>(manifestPath);
 }
 
-export async function createManifest(hivePath: string, leader: string): Promise<HiveManifest> {
+export async function saveManifest(hivePath: string, manifest: HiveManifest): Promise<void> {
+  const manifestPath = path.join(hivePath, ".hive-manifest.json");
+  await fs.writeFile(manifestPath, JSON.stringify(manifest, null, 2));
+}
+
+export async function initializeManifest(hivePath: string, leaderName: string): Promise<HiveManifest> {
   const manifest: HiveManifest = {
-    version: '1.0.0',
-    createdAt: new Date().toISOString(),
-    leader,
-    profiles: [leader],
+    version: "1.0.0",
+    leader: leaderName,
+    profiles: [leaderName],
+    projects: [],
+    created: new Date().toISOString(),
+    lastScan: new Date().toISOString(),
   };
-
-  const manifestPath = await getManifestPath(hivePath);
-  await writeJsonFile(manifestPath, manifest);
-
+  await saveManifest(hivePath, manifest);
   return manifest;
-}
-
-export async function updateManifest(
-  hivePath: string,
-  updates: Partial<Omit<HiveManifest, 'version' | 'createdAt'>>
-): Promise<HiveManifest> {
-  const manifest = await loadManifest(hivePath);
-  if (!manifest) {
-    throw new Error('Manifest not found. Run init first.');
-  }
-
-  const updatedManifest: HiveManifest = {
-    ...manifest,
-    ...updates,
-    profiles: updates.profiles ?? manifest.profiles,
-    leader: updates.leader ?? manifest.leader,
-  };
-
-  const manifestPath = await getManifestPath(hivePath);
-  await writeJsonFile(manifestPath, updatedManifest);
-
-  return updatedManifest;
 }
 
 export async function addProfileToManifest(hivePath: string, profileName: string): Promise<void> {
   const manifest = await loadManifest(hivePath);
-  if (!manifest) {
-    throw new Error('Manifest not found.');
-  }
+  if (!manifest) return;
 
   if (!manifest.profiles.includes(profileName)) {
     manifest.profiles.push(profileName);
-    const manifestPath = await getManifestPath(hivePath);
-    await writeJsonFile(manifestPath, manifest);
-  }
-}
-
-export async function removeProfileFromManifest(hivePath: string, profileName: string): Promise<void> {
-  const manifest = await loadManifest(hivePath);
-  if (!manifest) {
-    throw new Error('Manifest not found.');
   }
 
-  manifest.profiles = manifest.profiles.filter(p => p !== profileName);
-  const manifestPath = await getManifestPath(hivePath);
-  await writeJsonFile(manifestPath, manifest);
+  await saveManifest(hivePath, manifest);
 }
 
-export async function getLeaderFromManifest(hivePath: string): Promise<string | null> {
+export async function addProjectToManifest(
+  hivePath: string,
+  projectName: string,
+  profiles: string[] = []
+): Promise<void> {
   const manifest = await loadManifest(hivePath);
-  return manifest?.leader ?? null;
+  if (!manifest) return;
+
+  manifest.projects.push({
+    name: projectName,
+    profiles,
+    created: new Date().toISOString(),
+    status: "active",
+  });
+
+  // Add any new profiles from this project
+  for (const profileName of profiles) {
+    if (!manifest.profiles.includes(profileName)) {
+      manifest.profiles.push(profileName);
+    }
+  }
+
+  await saveManifest(hivePath, manifest);
+}
+
+export async function assignProfileToProject(
+  hivePath: string,
+  projectName: string,
+  profileNames: string[]
+): Promise<boolean> {
+  const manifest = await loadManifest(hivePath);
+  if (!manifest) return false;
+
+  const project = manifest.projects.find(p => p.name === projectName);
+  if (!project) return false;
+
+  project.profiles.push(...profileNames.filter(p => !project.profiles.includes(p)));
+  await saveManifest(hivePath, manifest);
+  return true;
 }

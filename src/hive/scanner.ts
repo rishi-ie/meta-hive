@@ -31,35 +31,30 @@ async function generateInsights(
   profiles: Profile[],
   projects: string[],
   leader: string,
-  hivePath: string
+  _hivePath: string
 ): Promise<string[]> {
   const insights: string[] = [];
 
-  // Profile count insight
-  insights.push(`${profiles.length} profile(s) in the hive`);
+  insights.push(profiles.length + " profile(s) in the hive");
 
-  // Project coverage
   if (projects.length > 0) {
-    insights.push(`Working on ${projects.length} project(s): ${projects.join(', ')}`);
+    insights.push("Working on " + projects.length + " project(s): " + projects.join(", "));
   }
 
-  // Leader status
   const leaderProfile = profiles.find(p => p.name === leader);
   if (leaderProfile) {
-    insights.push(`Leader "${leader}" is active`);
+    insights.push('Leader "' + leader + '" is active');
   }
 
-  // Active projects per profile
   for (const profile of profiles) {
     if (profile.projects.length > 0) {
-      insights.push(`${profile.name} is working on: ${profile.projects.join(', ')}`);
+      insights.push(profile.name + " is working on: " + profile.projects.join(", "));
     }
   }
 
-  // Memory insights (check if profiles have memory)
   const profilesWithMemory = profiles.filter(p => p.identity.capabilities && p.identity.capabilities.length > 0);
   if (profilesWithMemory.length > 0) {
-    insights.push(`${profilesWithMemory.length} profile(s) have configured capabilities`);
+    insights.push(profilesWithMemory.length + " profile(s) have configured capabilities");
   }
 
   return insights;
@@ -68,29 +63,29 @@ async function generateInsights(
 export async function getHiveSummary(hivePath: string): Promise<string> {
   const manifest = await loadManifest(hivePath);
   if (!manifest) {
-    return 'No hive found. Run `meta-hive init` to create one.';
+    return "No hive found. Run `meta-hive init` to create one.";
   }
 
   const profiles = await getAllProfiles(hivePath);
   const projects = await scanProjects(hivePath);
 
-  const lines: string[] = [
-    '=== Meta-Hive Status ===',
-    `Hive: ${hivePath}`,
-    `Version: ${manifest.version}`,
-    `Created: ${manifest.createdAt}`,
-    `Leader: ${manifest.leader}`,
-    '',
-    `Profiles (${profiles.length}):`,
-    ...manifest.profiles.map(p => `  - ${p}`),
-    '',
-    `Projects (${projects.length}):`,
-    ...projects.map(p => `  - ${p}`),
-    '',
-    `Last Scan: ${new Date().toISOString()}`,
+  const lines = [
+    "=== Meta-Hive Status ===",
+    "Hive: " + hivePath,
+    "Version: " + manifest.version,
+    "Created: " + manifest.created,
+    "Leader: " + manifest.leader,
+    "",
+    "Profiles (" + profiles.length + "):",
+    ...manifest.profiles.map(p => "  - " + p),
+    "",
+    "Projects (" + projects.length + "):",
+    ...projects.map(p => "  - " + p),
+    "",
+    "Last Scan: " + new Date().toISOString(),
   ];
 
-  return lines.join('\n');
+  return lines.join("\n");
 }
 
 export async function checkNewProfiles(hivePath: string, knownProfiles: string[]): Promise<string[]> {

@@ -3,8 +3,8 @@ export interface Profile {
   identity: ProfileIdentity;
   projects: string[];
   isLeader: boolean;
-  createdAt: string;
-  lastActive: string;
+  createdAt?: string;
+  lastActive?: string;
 }
 
 export interface ProfileIdentity {
@@ -16,29 +16,26 @@ export interface ProfileIdentity {
 
 export interface HiveManifest {
   version: string;
-  createdAt: string;
   leader: string;
   profiles: string[];
+  projects: ProjectInfo[];
+  created: string;
+  lastScan: string;
+}
+
+export interface ProjectInfo {
+  name: string;
+  profiles: string[];
+  created: string;
+  status: "active" | "paused" | "completed";
 }
 
 export interface HiveConfig {
   hivePath: string;
   profileName: string;
   isLeader: boolean;
+  projects: string[];
   activeProject: string | null;
-}
-
-export interface ProjectContext {
-  profileName: string;
-  projectName: string;
-  context: string;
-  lastModified: string;
-}
-
-export interface HumanProfile {
-  name: string;
-  preferences: string[];
-  feedbackPath: string;
 }
 
 export interface ScanResult {

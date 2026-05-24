@@ -1,260 +1,169 @@
-# Meta-Hive
+# 🐝 meta-hive
 
-**Multi-agent hive orchestration system for the pi coding agent.**
-
-[![npm version](https://img.shields.io/npm/v/meta-hive.svg)](https://www.npmjs.com/package/meta-hive)
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+Multi-agent orchestration for [pi](https://github.com/earendil-works/pi-coding-agent). Manage projects with dedicated profiles - each project its own context, no switching.
 
 ---
 
-## 🚀 Talk to pi - No Commands Needed!
-
-**Just tell pi what you want!** The skill understands natural language and runs everything for you.
+## How it works
 
 ```
-You: "Create a new hive for me"
-pi:  Runs meta-hive init for you ✓
-
-You: "Add a new profile called laptop"  
-pi:  Runs meta-hive join for you ✓
-
-You: "Set my project to my-app"
-pi:  Uses meta_hive_set_project tool ✓
-
-You: "Show me the hive status"
-pi:  Runs meta-hive status and shows you ✓
-
-You: "Create a new project called my-app"
-pi:  Runs meta-hive project add for you ✓
+┌────────────────────────────────────────────────────────────┐
+│  LEADER (you)                                              │
+│  cd leader-folder && pi                                   │
+│  /dashboard → sees all projects + profiles                │
+└────────────────────────────────────────────────────────────┘
+        │
+        ├── web-app ──────────── frontend profile (cd web-app && pi)
+        ├── api-service ─────── backend profile (cd api-service && pi)
+        └── ios-app ─────────── mobile profile (cd ios-app && pi)
 ```
 
-**That's it!** No terminal commands needed. Just talk to pi like you're asking a friend.
+- **Project = profiles** (fixed, no switching)
+- **Leader** monitors everything
+- **Profiles** only see their project
+- **Complete context isolation**
 
 ---
 
-## Quick Start
-
-### 1. Install the skill
+## Quick start
 
 ```bash
-npx skills add https://github.com/rishi-ie/meta-hive --skill meta-hive
+# 1. Install
+git clone https://github.com/rishi-ie/meta-hive
+cd meta-hive && npm link
+
+# 2. Create hive
+meta-hive init --name .meta-hive --profile leader
+
+# 3. Open pi in the leader folder
+cd leader-folder  # or wherever you want to monitor from
+pi
 ```
 
-### 2. Just tell pi what you want!
-
-| Say this to pi... | pi will do this... |
-|-------------------|---------------------|
-| "Create a new hive" | Creates `.meta-hive/` folder |
-| "Add a profile called laptop" | Joins hive as laptop profile |
-| "Set my active project to my-app" | Sets your project |
-| "Show hive status" | Shows all profiles & info |
-| "List all profiles" | Lists everyone in hive |
-| "Create a project called new-app" | Adds new project |
-| "Scan the hive" | Scans all profiles (leader) |
-| "I want to leave the hive" | Removes your profile |
-
-### 3. That's it!
-
-pi handles everything. You just talk.
+The extension auto-loads. No linking needed.
 
 ---
 
-## What is Meta-Hive?
+## Your workflow
 
-Meta-hive connects multiple pi agent profiles through a shared folder, creating a collective intelligence system.
+### 1. Create a project (leader terminal)
 
 ```
-┌─────────────────────────────────────┐
-│           The Hive                   │
-│  ┌─────────┐      ┌─────────────┐   │
-│  │ Leader  │ ←──→ │   Human     │   │
-│  └────┬────┘      └─────────────┘   │
-│       │                               │
-│  ┌────┴─────────────────────┐        │
-│  │     Profiles             │        │
-│  │  ┌─────┐ ┌─────┐ ┌────┐ │        │
-│  │  │ P1  │ │ P2  │ │ P3 │ │        │
-│  │  └──┬──┘ └──┬──┘ └──┬─┘ │        │
-│  └─────┼───────┼───────┼───┘        │
-│        └───────┴───────┘            │
-│              ↓                      │
-│  ┌─────────────────────────┐      │
-│  │      Projects            │      │
-│  │  ┌─────┐ ┌─────┐ ┌────┐ │      │
-│  │  │ prj1│ │ prj2│ │ prj3│ │      │
-│  │  └─────┘ └─────┘ └─────┘ │      │
-│  └─────────────────────────┘      │
-└─────────────────────────────────────┘
+You: "Create a new project called web-app"
+pi:  /new-project web-app
+
+✅ Project "web-app" created!
+Profile "web-app" is dedicated.
+
+To work on it:
+1. New terminal
+2. cd to web-app folder
+3. Start pi
 ```
 
----
+### 2. Work on the project (profile terminal)
 
-## Features
-
-- **🎤 Natural Language** - Just tell pi what you want
-- **🤖 Multi-profile orchestration** - Connect multiple pi profiles
-- **👑 Leader-based coordination** - One profile orchestrates the hive
-- **🧠 Shared memory** - Profiles share learnings through agentmemory
-- **📝 Obsidian compatible** - All data in markdown
-- **⚡ Fast setup** - Ready in seconds
-
----
-
-## Usage Examples
-
-### "Create a new hive for me"
 ```
-You → pi: "Create a new hive for me"
-pi → Runs: meta-hive init --name .meta-hive --profile leader
+You: "What am I working on?"
+pi:  /projects
+
+YOUR PROJECTS
+--------------
+[active] web-app
 ```
 
-### "Add my laptop as a new profile"
+### 3. Monitor everything (leader terminal)
+
 ```
-You → pi: "Add my laptop as a new profile"  
-pi → Runs: meta-hive join /path/to/.meta-hive --profile laptop
+You: "Show me the dashboard"
+pi:  /dashboard
+
+HIVE DASHBOARD
+----------------
+
+Projects: 3
+Profiles: 4
+
+[active] web-app
+   Profiles: web-app
+
+[active] api-service
+   Profiles: backend
 ```
 
-### "Work on my-app project"
-```
-You → pi: "Set my active project to my-app"
-pi → Uses: meta_hive_set_project tool
-```
+### 4. Profile switching
 
-### "How's the hive doing?"
-```
-You → pi: "Show me the hive status"
-pi → Runs: meta-hive status
-        meta-hive profiles
-```
-
----
-
-## For Power Users
-
-### CLI Commands
-
-If you prefer terminal commands:
+Each profile is in its own directory:
 
 ```bash
-npx meta-hive init --name .meta-hive --profile leader    # Create hive
-npx meta-hive join /path/to/.meta-hive --profile name    # Join hive
-npx meta-hive status                                     # Show status
-npx meta-hive profiles                                   # List profiles
-npx meta-hive project add <name>                         # Add project
-npx meta-hive scan                                       # Scan hive
-npx meta-hive leave                                      # Leave hive
+~/leader/        → pi → Leader (monitoring)
+~/web-app/       → pi → web-app profile
+~/api-service/   → pi → backend profile
+~/ios-app/       → pi → mobile profile
 ```
 
-### pi Extension
-
-For deeper integration, copy the extension:
-
-```bash
-cp -r ~/.pi/agent/extensions/meta-hive
-```
-
-This enables:
-- Hive context injection on every turn
-- Custom tools (meta_hive_status, etc.)
-- Auto-detection of hive connection
+To switch: `cd` to that directory and start pi.
 
 ---
 
-## Hive Structure
+## Commands
+
+| Command | Who | What |
+|---------|-----|------|
+| `/new-project <name> [profile]` | Leader | Create project + profile |
+| `/dashboard` | Leader | See all projects + profiles |
+| `/projects` | All | List your projects |
+| `/profiles` | All | List all profiles |
+| `/hive` | All | Quick status |
+| `/meta-hive status` | All | Detailed status |
+| `/meta-hive scan` | Leader | Refresh data |
+
+## Conversational
+
+```
+"Create a new project for my frontend work"
+"Show me the dashboard"
+"What am I working on?"
+"Who's in the hive?"
+"What's the status?"
+```
+
+---
+
+## Data structure
 
 ```
 .meta-hive/
-├── .hive-manifest.json     # Registry of all profiles
-├── leader/                  # Leader profile (you)
-│   ├── identity.md          # Identity & personality
-│   ├── system-prompt.md     # System instructions
-│   └── memory/              # agentmemory
-├── profiles/                # Other profiles
-│   └── laptop/
-├── human/                   # Your profile
-│   ├── profile.md           # Your preferences
-│   └── feedback/            # Feedback files
-└── projects/               # Project workspaces
-    └── project-name/
+├── .hive-manifest.json     # All projects + profiles
+├── leader/                 # Leader profile (you)
+│   └── leader/
+├── profiles/               # Project profiles
+│   ├── web-app/
+│   ├── api-service/
+│   └── mobile/
+├── projects/               # Project workspaces
+│   ├── web-app/
+│   ├── api-service/
+│   └── mobile/
+├── human/                  # Your preferences
+└── shared/                 # Shared knowledge
 ```
 
 ---
 
-## Installation
-
-### Option 1: Skill (Recommended)
-
-```bash
-npx skills add https://github.com/rishi-ie/meta-hive --skill meta-hive
-```
-
-### Option 2: Global CLI
-
-```bash
-npm install -g meta-hive
-```
-
-### Option 3: Use Without Install
-
-```bash
-npx meta-hive <command>
-```
-
----
-
-## Quick Reference
-
-| What you want | Just say to pi |
-|---------------|----------------|
-| Create a hive | "Create a new hive" |
-| Add a profile | "Add a profile called [name]" |
-| Set project | "Set my project to [name]" |
-| Check status | "Show hive status" |
-| List profiles | "Show me all profiles" |
-| New project | "Create a project called [name]" |
-| Scan hive | "Scan the hive" (leader) |
-| Leave hive | "Leave the hive" |
-
----
-
-## How It Works
-
-1. **Tell pi** what you want to do
-2. **pi runs** the appropriate commands
-3. **Hive updates** with your changes
-4. **You're done!**
-
-No memorization needed. pi handles the details.
-
----
-
-## Opening a Profile in pi
-
-**Each profile connects via `hive-config.json` in their working directory.**
-
-To open a profile:
-1. Navigate to the directory with `hive-config.json`
-2. Start pi in that directory
-3. pi auto-detects the profile
+## Why?
 
 ```
-Project A/                    Project B/
-├── hive-config.json  (laptop) ├── hive-config.json (laptop)
-└── code/                     └── code/
+Without meta-hive:
+  → One agent juggling multiple projects
+  → Context bleeding between projects
+  → Manual prompt management
+
+With meta-hive:
+  → One profile per project
+  → Isolated context
+  → Conversational management
 ```
-
-**Same profile, different projects.** Just open pi in the folder you want to work on.
-
-To switch profiles: Open pi in a directory with a different `hive-config.json`.
-
----
-
-## Privacy
-
-- Single user control
-- Local folder-based
-- No cloud dependencies
-- All data in your control
 
 ---
 

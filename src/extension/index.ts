@@ -4,375 +4,297 @@ import path from "node:path";
 import fs from "node:fs/promises";
 import { spawn } from "node:child_process";
 
-export interface MetaHiveConfig {
-  hivePath: string;
+export interface HiveManifest {
+  version: string;
+  leader: string;
+  profiles: string[];
+  projects: ProjectInfo[];
+  created: string;
+  lastScan: string;
+}
+
+export interface ProjectInfo {
+  name: string;
+  profiles: string[];
+  created: string;
+  status: "active" | "paused" | "completed";
+}
+
+export interface ProfileConfig {
   profileName: string;
+  hivePath: string;
   isLeader: boolean;
+  projects: string[];
   activeProject: string | null;
 }
 
-export interface ProfileInfo {
-  name: string;
-  description: string;
-  projects: string[];
-  isLeader: boolean;
-  isCurrent: boolean;
-}
+const CONFIG_FILE = "hive-config.json";
+const MANIFEST_FILE = ".hive-manifest.json";
+const PROJECTS_DIR = "projects";
 
-const CONFIG_FILENAME = "hive-config.json";
-
-// Helper to run meta-hive CLI using spawn
 function runMetaHive(args: string[], cwd: string): Promise<string> {
   return new Promise((resolve) => {
-    const child = spawn("node", ["/Users/rishi/work/projects/meta-hive/dist/index.js", ...args], {
-      cwd,
-      env: { ...process.env },
-    });
+    const child = spawn("node", [
+      "/Users/rishi/work/projects/meta-hive/dist/index.js",
+      ...args
+    ], { cwd, env: { ...process.env } });
 
     let stdout = "";
     let stderr = "";
 
-    child.stdout?.on("data", (data) => {
-      stdout += data.toString();
-    });
+    child.stdout?.on("data", (data) => { stdout += data.toString(); });
+    child.stderr?.on("data", (data) => { stderr += data.toString(); });
 
-    child.stderr?.on("data", (data) => {
-      stderr += data.toString();
-    });
-
-    child.on("close", () => {
-      resolve(stderr || stdout);
-    });
-
-    child.on("error", () => {
-      resolve("Command failed");
-    });
+    child.on("close", () => { resolve(stderr || stdout); });
+    child.on("error", () => { resolve("Command failed"); });
   });
 }
 
-async function getConfig(cwd: string): Promise<MetaHiveConfig | null> {
-  const configPath = path.join(cwd, CONFIG_FILENAME);
+async function readManifest(hivePath: string): Promise<HiveManifest | null> {
   try {
-    const content = await fs.readFile(configPath, "utf-8");
+    const content = await fs.readFile(path.join(hivePath, MANIFEST_FILE), "utf-8");
     return JSON.parse(content);
   } catch {
     return null;
   }
 }
 
-async function getHiveManifest(hivePath: string): Promise<{ leader: string; profiles: string[]; version: string } | null> {
-  const manifestPath = path.join(hivePath, ".hive-manifest.json");
+async function writeManifest(hivePath: string, manifest: HiveManifest): Promise<void> {
+  await fs.writeFile(
+    path.join(hivePath, MANIFEST_FILE),
+    JSON.stringify(manifest, null, 2)
+  );
+}
+
+async function getConfig(cwd: string): Promise<ProfileConfig | null> {
   try {
-    const content = await fs.readFile(manifestPath, "utf-8");
+    const content = await fs.readFile(path.join(cwd, CONFIG_FILE), "utf-8");
     return JSON.parse(content);
   } catch {
     return null;
   }
 }
 
-async function getProfileInfo(profilePath: string, profileName: string, isLeader: boolean, currentProfile: string): Promise<ProfileInfo | null> {
-  const identityPath = path.join(profilePath, "identity.md");
-  const projectsPath = path.join(profilePath, "projects.json");
-
-  let description = "";
-  let projects: string[] = [];
-
-  try {
-    const identityContent = await fs.readFile(identityPath, "utf-8");
-    const lines = identityContent.split("\n");
-    for (let i = 1; i < lines.length; i++) {
-      const line = lines[i].trim();
-      if (line && !line.startsWith("#") && !line.startsWith("##")) {
-        description = line;
-        break;
-      }
-    }
-  } catch {
-    description = "Profile in hive";
+async function findHive(cwd: string): Promise<string | null> {
+  let checkPath = cwd;
+  for (let i = 0; i < 10; i++) {
+    const hivePath = path.join(checkPath, ".meta-hive");
+    try {
+      await fs.access(hivePath);
+      return hivePath;
+    } catch {}
+    const parent = path.dirname(checkPath);
+    if (parent === checkPath) break;
+    checkPath = parent;
   }
-
-  try {
-    const projectsContent = await fs.readFile(projectsPath, "utf-8");
-    projects = JSON.parse(projectsContent);
-    if (!Array.isArray(projects)) projects = [];
-  } catch {
-    projects = [];
-  }
-
-  return {
-    name: profileName,
-    description,
-    projects,
-    isLeader,
-    isCurrent: profileName === currentProfile,
-  };
+  return null;
 }
 
 export default async function (pi: ExtensionAPI) {
-  let config: MetaHiveConfig | null = null;
-  let currentHivePath: string | null = null;
+  let config: ProfileConfig | null = null;
+  let hivePath: string | null = null;
+  let manifest: HiveManifest | null = null;
 
-  // Load config on session start
+  // Session start
   pi.on("session_start", async (_event, ctx) => {
     config = await getConfig(ctx.cwd);
-    if (config?.hivePath) {
-      currentHivePath = path.isAbsolute(config.hivePath)
-        ? config.hivePath
-        : path.join(ctx.cwd, config.hivePath);
+    hivePath = config?.hivePath ? await findHive(ctx.cwd) : null;
+
+    if (hivePath) {
+      manifest = await readManifest(hivePath);
     }
 
-    if (config && currentHivePath) {
-      const manifest = await getHiveManifest(currentHivePath);
+    if (config && hivePath && manifest) {
+      const role = config.isLeader ? "Leader" : "Profile";
+      const projects = config.projects.length > 0
+        ? "\nProjects: " + config.projects.join(", ")
+        : "";
 
-      let welcomeMsg = `🐝 Meta-Hive\n`;
-      welcomeMsg += `━━━━━━━━━━━━━━━\n`;
-      welcomeMsg += `Profile: ${config.profileName}\n`;
-      welcomeMsg += `Role: ${config.isLeader ? "👑 Leader" : "🤖 Profile"}\n`;
-      welcomeMsg += `Hive: ${currentHivePath}\n`;
-
-      if (config.activeProject) {
-        welcomeMsg += `Project: ${config.activeProject}\n`;
-      }
-
-      if (manifest) {
-        welcomeMsg += `Profiles in hive: ${manifest.profiles.length}\n`;
-      }
-
-      welcomeMsg += `\nCommands: /meta-hive, /profile, /hive`;
-
-      ctx.ui.notify(welcomeMsg, "info");
-    }
-  });
-
-  // Inject hive context into agent
-  pi.on("before_agent_start", async (_event, _ctx) => {
-    if (!config || !currentHivePath) return;
-
-    const manifest = await getHiveManifest(currentHivePath);
-    if (!manifest) return;
-
-    let hiveContext = `\n## Meta-Hive Context\n`;
-    hiveContext += `**Hive:** ${currentHivePath}\n`;
-    hiveContext += `**Your Profile:** ${config.profileName}\n`;
-    hiveContext += `**Role:** ${config.isLeader ? "Leader (orchestrator)" : "Profile (worker)"}\n`;
-    hiveContext += `**Active Project:** ${config.activeProject || "None"}\n`;
-
-    if (config.isLeader) {
-      hiveContext += `\n### Hive Members\n`;
-      for (const profileName of manifest.profiles) {
-        const profilePath = path.join(currentHivePath, profileName === manifest.leader ? "leader" : "profiles", profileName);
-        const info = await getProfileInfo(profilePath, profileName, profileName === manifest.leader, config.profileName);
-        if (info) {
-          const badge = profileName === manifest.leader ? " 👑" : "";
-          hiveContext += `- **${profileName}**${badge}`;
-          if (info.projects.length > 0) {
-            hiveContext += ` (${info.projects.join(", ")})`;
-          }
-          hiveContext += `\n`;
-        }
-      }
-    }
-
-    return {
-      message: {
-        customType: "meta-hive",
-        content: hiveContext,
-        display: false,
-      },
-    };
-  });
-
-  // Register /meta-hive command
-  pi.registerCommand("meta-hive", {
-    description: "Meta-Hive commands: init, join, status, profiles, project, scan, leave",
-    async handler(args, ctx) {
-      const parts = args.trim().split(/\s+/);
-      const subcommand = parts[0] || "";
-      const subArgs = parts.slice(1).join(" ");
-
-      if (!subcommand) {
-        ctx.ui.notify(
-          "Meta-Hive Commands:\n" +
-          "/meta-hive init - Create hive\n" +
-          "/meta-hive join <name> [projects] - Add profile\n" +
-          "/meta-hive status - Show status\n" +
-          "/meta-hive profiles - List profiles\n" +
-          "/meta-hive project add <name> - Add project\n" +
-          "/meta-hive scan - Scan hive (leader)\n" +
-          "/meta-hive leave - Leave hive",
-          "info"
-        );
-        return;
-      }
-
-      switch (subcommand) {
-        case "init": {
-          ctx.ui.notify("Creating new hive...", "info");
-          const output = await runMetaHive(["init", "--name", ".meta-hive", "--profile", "leader"], ctx.cwd);
-          ctx.ui.notify(output.includes("✅") ? "✅ Hive created!" : output, "info");
-          break;
-        }
-        case "join": {
-          if (!subArgs) {
-            ctx.ui.notify("Usage: /meta-hive join <profile-name> [projects...]", "info");
-            return;
-          }
-          const joinParts = subArgs.split(/\s+/);
-          const profileName = joinParts[0];
-          const projects = joinParts.slice(1);
-
-          let hivePath = currentHivePath || "";
-          if (!hivePath) {
-            let checkPath = ctx.cwd;
-            for (let i = 0; i < 5; i++) {
-              const parentPath = path.dirname(checkPath);
-              if (parentPath === checkPath) break;
-              const potentialHive = path.join(parentPath, ".meta-hive");
-              try {
-                await fs.access(potentialHive);
-                hivePath = potentialHive;
-                break;
-              } catch {}
-              checkPath = parentPath;
-            }
-          }
-
-          if (!hivePath) {
-            ctx.ui.notify("No hive found. Run /meta-hive init first.", "error");
-            return;
-          }
-
-          ctx.ui.notify(`Creating profile "${profileName}"...`, "info");
-          const args = ["join", hivePath, "--profile", profileName];
-          if (projects.length > 0) {
-            args.push("--projects", ...projects);
-          }
-          const output = await runMetaHive(args, ctx.cwd);
-          ctx.ui.notify(output.includes("✅") ? `✅ Profile "${profileName}" created!` : output, "info");
-          break;
-        }
-        case "status": {
-          const output = await runMetaHive(["status"], ctx.cwd);
-          ctx.ui.notify(output.substring(0, 300), "info");
-          break;
-        }
-        case "profiles": {
-          const output = await runMetaHive(["profiles"], ctx.cwd);
-          ctx.ui.notify(output.substring(0, 300), "info");
-          break;
-        }
-        case "scan": {
-          if (!config?.isLeader) {
-            ctx.ui.notify("Only the Leader can scan.", "error");
-            return;
-          }
-          const output = await runMetaHive(["scan"], ctx.cwd);
-          ctx.ui.notify(output.includes("✅") ? "✅ Scan complete!" : output, "info");
-          break;
-        }
-        case "project": {
-          const projectArgs = subArgs.split(/\s+/);
-          const projectCmd = projectArgs[0] || "";
-          const projectName = projectArgs.slice(1).join(" ");
-
-          if (projectCmd === "add" && projectName) {
-            const output = await runMetaHive(["project", "add", projectName], ctx.cwd);
-            ctx.ui.notify(output.includes("✅") ? `✅ Project "${projectName}" created!` : output, "info");
-          } else if (projectCmd === "list") {
-            const output = await runMetaHive(["project", "list"], ctx.cwd);
-            ctx.ui.notify(output.substring(0, 200), "info");
-          } else {
-            ctx.ui.notify("Usage:\n/meta-hive project add <name>\n/meta-hive project list", "info");
-          }
-          break;
-        }
-        case "leave": {
-          if (config?.isLeader) {
-            ctx.ui.notify("Leaders cannot leave. Delete the hive folder instead.", "error");
-            return;
-          }
-          const output = await runMetaHive(["leave"], ctx.cwd);
-          ctx.ui.notify(output.includes("✅") ? "✅ Left the hive!" : output, "info");
-          break;
-        }
-        default:
-          ctx.ui.notify(`Unknown: ${subcommand}\n\nUse /meta-hive for help`, "error");
-      }
-    },
-  });
-
-  // Register /profile command
-  pi.registerCommand("profile", {
-    description: "Show and select hive profiles",
-    async handler(_args, ctx) {
-      if (!config || !currentHivePath) {
-        ctx.ui.notify("Not connected to any hive. Run /meta-hive init first.", "error");
-        return;
-      }
-
-      const manifest = await getHiveManifest(currentHivePath);
-      if (!manifest) {
-        ctx.ui.notify("Hive manifest not found", "error");
-        return;
-      }
-
-      const profileList: string[] = [];
-      const profileInfos: ProfileInfo[] = [];
-
-      for (const profileName of manifest.profiles) {
-        const profilePath = path.join(
-          currentHivePath,
-          profileName === manifest.leader ? "leader" : "profiles",
-          profileName
-        );
-        const info = await getProfileInfo(profilePath, profileName, profileName === manifest.leader, config.profileName);
-        if (info) {
-          profileInfos.push(info);
-          const badge = info.isLeader ? " 👑" : "";
-          const current = info.isCurrent ? " (you)" : "";
-          const projects = info.projects.length > 0 ? ` - ${info.projects.slice(0, 2).join(", ")}` : "";
-          profileList.push(`${info.name}${badge}${current}${projects}`);
-        }
-      }
-
-      const choice = await ctx.ui.select(`🐝 Hive Profiles (${manifest.profiles.length})`, profileList);
-
-      if (choice) {
-        const selectedName = choice.split(" 👑")[0].split(" (you)")[0].trim();
-        const selectedInfo = profileInfos.find(p => p.name === selectedName);
-
-        if (selectedInfo) {
-          let detailMsg = `━━━━━━━━━━━━━━━\n`;
-          detailMsg += `Profile: ${selectedInfo.name}\n`;
-          detailMsg += `Role: ${selectedInfo.isLeader ? "👑 Leader" : "🤖 Profile"}\n`;
-          detailMsg += `Description: ${selectedInfo.description}\n`;
-          if (selectedInfo.projects.length > 0) {
-            detailMsg += `Projects: ${selectedInfo.projects.join(", ")}\n`;
-          }
-
-          ctx.ui.notify(detailMsg, "info");
-
-          if (!selectedInfo.isCurrent) {
-            ctx.ui.notify(`To switch: cd to that profile's directory and restart pi`, "info");
-          }
-        }
-      }
-    },
-  });
-
-  // Quick /hive command
-  pi.registerCommand("hive", {
-    description: "Quick hive status",
-    handler: async (_args, ctx) => {
-      if (!config || !currentHivePath) {
-        ctx.ui.notify("Not connected to hive", "error");
-        return;
-      }
-      const manifest = await getHiveManifest(currentHivePath);
       ctx.ui.notify(
-        `${config.profileName}@${config.isLeader ? "👑" : "🤖"} | ${manifest?.profiles.length || 0} profiles | ${config.activeProject || "no project"}`,
+        "Hive\n------\nProfile: " + config.profileName + "\nRole: " + role + projects,
         "info"
       );
+    }
+  });
+
+  // /new-project
+  pi.registerCommand("new-project", {
+    description: "Create project with dedicated profile",
+    async handler(args, ctx) {
+      if (!config?.isLeader) {
+        ctx.ui.notify("Leader only.", "error");
+        return;
+      }
+
+      const parts = args.trim().split(/\s+/);
+      const projectName = parts[0];
+      const profileName = parts[1] || projectName;
+
+      if (!projectName) {
+        ctx.ui.notify("Usage: /new-project <name> [profile]\nExample: /new-project web-app frontend", "info");
+        return;
+      }
+
+      if (manifest?.projects.some(p => p.name === projectName)) {
+        ctx.ui.notify("Project already exists.", "error");
+        return;
+      }
+
+      ctx.ui.notify("Creating project " + projectName + "...", "info");
+
+      // Create project
+      const projectPath = path.join(hivePath!, PROJECTS_DIR, projectName);
+      await fs.mkdir(projectPath, { recursive: true });
+      await fs.writeFile(path.join(projectPath, "context.md"), "# " + projectName + "\n\nProject workspace.\n");
+      await fs.writeFile(path.join(projectPath, "status.md"), "Status: active\nCreated: " + new Date().toISOString() + "\n");
+
+      // Create profile
+      const newProfilePath = path.join(hivePath!, "profiles", profileName);
+      await fs.mkdir(newProfilePath, { recursive: true });
+      await fs.writeFile(path.join(newProfilePath, "identity.md"), "# " + profileName + "\n\nDedicated profile for " + projectName + ".\n");
+      await fs.writeFile(path.join(newProfilePath, "projects.json"), JSON.stringify([projectName]));
+
+      // Update manifest
+      manifest!.projects.push({
+        name: projectName,
+        profiles: [profileName],
+        created: new Date().toISOString(),
+        status: "active",
+      });
+      if (!manifest!.profiles.includes(profileName)) {
+        manifest!.profiles.push(profileName);
+      }
+      await writeManifest(hivePath!, manifest!);
+
+      ctx.ui.notify(
+        "Project created!\n\nProfile " + profileName + " is dedicated to " + projectName + ".\n\nTo work:\n1. New terminal\n2. cd to project folder\n3. Start pi",
+        "info"
+      );
+    },
+  });
+
+  // /dashboard
+  pi.registerCommand("dashboard", {
+    description: "View all projects (leader only)",
+    async handler(_args, ctx) {
+      if (!config?.isLeader) {
+        ctx.ui.notify("Leader only.", "error");
+        return;
+      }
+
+      if (!manifest || !hivePath) {
+        ctx.ui.notify("No hive data.", "error");
+        return;
+      }
+
+      let dashboard = "HIVE DASHBOARD\n----------------\n\n";
+      dashboard += "Projects: " + manifest.projects.length + "\n";
+      dashboard += "Profiles: " + manifest.profiles.length + "\n\n";
+
+      for (const project of manifest.projects) {
+        const statusIcon = project.status === "active" ? "[active]" : project.status === "paused" ? "[paused]" : "[done]";
+        dashboard += statusIcon + " " + project.name + "\n";
+        dashboard += "   Profiles: " + (project.profiles.join(", ") || "none") + "\n\n";
+      }
+
+      const assignedProfiles = manifest.projects.flatMap(p => p.profiles);
+      const unassigned = manifest.profiles.filter(p => !assignedProfiles.includes(p) && p !== manifest!.leader);
+      if (unassigned.length > 0) {
+        dashboard += "Unassigned: " + unassigned.join(", ") + "\n";
+      }
+
+      ctx.ui.notify(dashboard, "info");
+    },
+  });
+
+  // /projects
+  pi.registerCommand("projects", {
+    description: "List projects",
+    async handler(_args, ctx) {
+      if (!manifest || !hivePath) {
+        ctx.ui.notify("No hive.", "error");
+        return;
+      }
+
+      if (manifest.projects.length === 0) {
+        ctx.ui.notify("No projects. Use /new-project <name>", "info");
+        return;
+      }
+
+      if (config?.isLeader) {
+        let list = "ALL PROJECTS\n-------------\n\n";
+        for (const project of manifest.projects) {
+          const statusIcon = project.status === "active" ? "[active]" : project.status === "paused" ? "[paused]" : "[done]";
+          list += statusIcon + " " + project.name + "\n";
+          list += "   Profiles: " + (project.profiles.join(", ") || "none") + "\n\n";
+        }
+        ctx.ui.notify(list, "info");
+      } else if (config) {
+        const myConfig = config;
+        const myProjects = manifest.projects.filter(p => myConfig.projects.includes(p.name));
+        let list = "YOUR PROJECTS\n--------------\n\n";
+        for (const project of myProjects) {
+          list += "[active] " + project.name + "\n\n";
+        }
+        ctx.ui.notify(list, "info");
+      }
+    },
+  });
+
+  // /profiles
+  pi.registerCommand("profiles", {
+    description: "List profiles",
+    async handler(_args, ctx) {
+      if (!manifest || !hivePath) {
+        ctx.ui.notify("No hive.", "error");
+        return;
+      }
+
+      let list = "PROFILES\n---------\n\n";
+      for (const profileName of manifest.profiles) {
+        const isLeader = profileName === manifest.leader;
+        const icon = isLeader ? "[leader]" : "[profile]";
+        const current = profileName === config?.profileName ? " (you)" : "";
+        list += icon + " " + profileName + current + "\n";
+      }
+
+      ctx.ui.notify(list, "info");
+    },
+  });
+
+  // /hive
+  pi.registerCommand("hive", {
+    description: "Quick status",
+    handler: async (_args, ctx) => {
+      if (!manifest || !config) {
+        ctx.ui.notify("Not connected.", "error");
+        return;
+      }
+      ctx.ui.notify(
+        config.profileName + "@" + (config.isLeader ? "leader" : "profile") + " | " + manifest.projects.length + " projects | " + manifest.profiles.length + " profiles",
+        "info"
+      );
+    },
+  });
+
+  // /meta-hive
+  pi.registerCommand("meta-hive", {
+    description: "Meta-hive commands",
+    async handler(args, ctx) {
+      const cmd = args.trim().split(/\s+/)[0];
+
+      if (!cmd) {
+        ctx.ui.notify("Commands:\n/new-project <name> [profile]\n/dashboard\n/projects\n/profiles\n/hive", "info");
+        return;
+      }
+
+      if (cmd === "status") {
+        await runMetaHive(["status"], ctx.cwd).then(output => ctx.ui.notify(output.substring(0, 300), "info"));
+      } else if (cmd === "scan") {
+        await runMetaHive(["scan"], ctx.cwd).then(output => ctx.ui.notify(output.substring(0, 200), "info"));
+      } else {
+        ctx.ui.notify("Unknown: " + cmd + ". Use /hive for commands.", "info");
+      }
     },
   });
 
@@ -380,150 +302,63 @@ export default async function (pi: ExtensionAPI) {
   pi.registerTool({
     name: "meta_hive_status",
     label: "Hive Status",
-    description: "Get detailed status of the current hive, profile, and project",
+    description: "Get hive status",
     parameters: Type.Object({}),
     async execute(_toolCallId, _params, _signal, _onUpdate, _ctx) {
-      if (!config || !currentHivePath) {
-        return {
-          content: [{ type: "text" as const, text: "Not connected to any hive.\n\nUse /meta-hive init to create one, or /meta-hive join to connect." }],
-          details: {},
-        };
+      if (!manifest || !hivePath || !config) {
+        return { content: [{ type: "text" as const, text: "Not connected. Run /meta-hive init first." }], details: {} };
       }
 
-      const manifest = await getHiveManifest(currentHivePath);
+      const status = "Hive Status\n\nProjects: " + manifest.projects.length + "\nProfiles: " + manifest.profiles.length + "\nYour Profile: " + config.profileName + "\nYour Projects: " + (config.projects.join(", ") || "none");
 
-      let status = `# Meta-Hive Status\n\n`;
-      status += `## Connection\n`;
-      status += `- **Hive Path:** \`${currentHivePath}\`\n`;
-      status += `- **Your Profile:** ${config.profileName}\n`;
-      status += `- **Role:** ${config.isLeader ? "👑 Leader" : "🤖 Profile"}\n`;
-      status += `- **Active Project:** ${config.activeProject || "None"}\n`;
-
-      if (manifest) {
-        status += `\n## Hive Info\n`;
-        status += `- **Leader:** ${manifest.leader}\n`;
-        status += `- **Total Profiles:** ${manifest.profiles.length}\n`;
-
-        status += `\n## All Profiles\n`;
-        for (const profileName of manifest.profiles) {
-          const profilePath = path.join(currentHivePath, profileName === manifest.leader ? "leader" : "profiles", profileName);
-          const info = await getProfileInfo(profilePath, profileName, profileName === manifest.leader, config.profileName);
-          const badge = info?.isLeader ? " 👑" : "";
-          const current = info?.isCurrent ? " ← you" : "";
-          status += `- **${profileName}**${badge}${current}\n`;
-        }
-      }
-
-      return {
-        content: [{ type: "text" as const, text: status }],
-        details: { hivePath: currentHivePath, manifest, config },
-      };
+      return { content: [{ type: "text" as const, text: status }], details: { manifest, config } };
     },
   });
 
   pi.registerTool({
-    name: "meta_hive_scan",
-    label: "Hive Scan",
-    description: "Scan the hive for insights (Leader only)",
+    name: "meta_hive_dashboard",
+    label: "Hive Dashboard",
+    description: "Get dashboard (leader only)",
     parameters: Type.Object({}),
     async execute(_toolCallId, _params, _signal, _onUpdate, _ctx) {
-      if (!config || !currentHivePath) {
-        return { content: [{ type: "text" as const, text: "Not connected to any hive." }], details: {} };
-      }
-      if (!config.isLeader) {
-        return { content: [{ type: "text" as const, text: "Only the Leader can scan the hive." }], details: {} };
+      if (!config?.isLeader || !manifest) {
+        return { content: [{ type: "text" as const, text: "Leader access required." }], details: {} };
       }
 
-      const manifest = await getHiveManifest(currentHivePath);
-      if (!manifest) {
-        return { content: [{ type: "text" as const, text: "Hive manifest not found." }], details: {} };
+      let dashboard = "# Hive Dashboard\n\n";
+      dashboard += "Projects: " + manifest.projects.length + "\n";
+      dashboard += "Profiles: " + manifest.profiles.length + "\n\n";
+
+      for (const project of manifest.projects) {
+        const status = project.status === "active" ? "[active]" : project.status === "paused" ? "[paused]" : "[done]";
+        dashboard += status + " " + project.name + "\n";
+        dashboard += "Profiles: " + (project.profiles.join(", ") || "none") + "\n\n";
       }
 
-      let scan = `# Hive Scan\n\n`;
-      scan += `**Profiles:** ${manifest.profiles.length}\n\n`;
-
-      for (const profileName of manifest.profiles) {
-        const profilePath = path.join(currentHivePath, profileName === manifest.leader ? "leader" : "profiles", profileName);
-        const info = await getProfileInfo(profilePath, profileName, profileName === manifest.leader, config.profileName);
-        scan += `### ${profileName}${profileName === manifest.leader ? " 👑" : ""}\n`;
-        scan += `${info?.description || ""}\n`;
-        if (info?.projects.length) {
-          scan += `\nProjects: ${info.projects.join(", ")}\n`;
-        }
-        scan += `\n`;
-      }
-
-      return {
-        content: [{ type: "text" as const, text: scan }],
-        details: { profiles: manifest.profiles },
-      };
+      return { content: [{ type: "text" as const, text: dashboard }], details: { manifest } };
     },
   });
 
   pi.registerTool({
-    name: "meta_hive_set_project",
-    label: "Set Active Project",
-    description: "Set the active project for this profile",
-    parameters: Type.Object({
-      project: Type.String({ description: "Project name to set as active" }),
-    }),
-    async execute(_toolCallId, params, _signal, _onUpdate, ctx) {
-      if (!config || !currentHivePath) {
-        return { content: [{ type: "text" as const, text: "Not connected to any hive." }], details: {} };
-      }
-
-      const projectPath = path.join(currentHivePath, "projects", params.project);
-      try {
-        await fs.access(projectPath);
-      } catch {
-        return { content: [{ type: "text" as const, text: `Project "${params.project}" not found.` }], details: {} };
-      }
-
-      config.activeProject = params.project;
-      await fs.writeFile(path.join(ctx.cwd, CONFIG_FILENAME), JSON.stringify(config, null, 2));
-
-      return {
-        content: [{ type: "text" as const, text: `Active project set to: ${params.project}` }],
-        details: { activeProject: params.project },
-      };
-    },
-  });
-
-  pi.registerTool({
-    name: "meta_hive_list_profiles",
-    label: "List Hive Profiles",
-    description: "List all profiles in the hive",
+    name: "meta_hive_my_projects",
+    label: "My Projects",
+    description: "Get your assigned projects",
     parameters: Type.Object({}),
     async execute(_toolCallId, _params, _signal, _onUpdate, _ctx) {
-      if (!config || !currentHivePath) {
-        return { content: [{ type: "text" as const, text: "Not connected to any hive." }], details: {} };
+      if (!config || !manifest) {
+        return { content: [{ type: "text" as const, text: "Not connected." }], details: {} };
       }
 
-      const manifest = await getHiveManifest(currentHivePath);
-      if (!manifest) {
-        return { content: [{ type: "text" as const, text: "Hive manifest not found." }], details: {} };
+      const myProjects = config.isLeader
+        ? manifest.projects
+        : manifest.projects.filter(p => p.profiles.includes(config!.profileName));
+
+      let output = "# " + (config.isLeader ? "All" : "My") + " Projects\n\n";
+      for (const project of myProjects) {
+        output += "- " + project.name + " (" + project.status + ")\n";
       }
 
-      let output = `# Hive Profiles\n\n`;
-      output += `**Total:** ${manifest.profiles.length} | **Leader:** ${manifest.leader}\n\n`;
-
-      for (const profileName of manifest.profiles) {
-        const profilePath = path.join(currentHivePath, profileName === manifest.leader ? "leader" : "profiles", profileName);
-        const info = await getProfileInfo(profilePath, profileName, profileName === manifest.leader, config.profileName);
-        const badge = info?.isLeader ? "👑 " : "";
-        const current = info?.isCurrent ? " (you)" : "";
-        output += `### ${badge}${profileName}${current}\n`;
-        output += `${info?.description || ""}\n`;
-        if (info?.projects.length) {
-          output += `\nProjects: ${info.projects.join(", ")}\n`;
-        }
-        output += `\n`;
-      }
-
-      return {
-        content: [{ type: "text" as const, text: output }],
-        details: { profiles: manifest.profiles, leader: manifest.leader },
-      };
+      return { content: [{ type: "text" as const, text: output }], details: { projects: myProjects } };
     },
   });
 }

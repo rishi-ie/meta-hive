@@ -1,86 +1,57 @@
-import pc from 'picocolors';
-import { loadManifest } from '../hive/manifest.js';
-import { getAllProfiles } from '../profile/creator.js';
-import { scanHive } from '../hive/scanner.js';
-import { loadConfig } from '../hive/config.js';
+import fs from "node:fs/promises";
+import path from "node:path";
+import { loadManifest } from "../hive/manifest.js";
+import { findHivePath } from "../utils/fileSystem.js";
 
-export async function showStatus(): Promise<void> {
-  const config = await loadConfig();
-
-  if (!config?.hivePath) {
-    console.log(pc.red('❌ Not connected to any hive.'));
-    console.log(pc.gray('  Run `meta-hive init` or `meta-hive join <path>` to connect.'));
+export async function statusCommand(): Promise<void> {
+  const hivePath = await findHivePath(process.cwd());
+  if (!hivePath) {
+    console.log("❌ Not in a hive. Run: /meta-hive init");
     return;
   }
-
-  const hivePath = config.hivePath;
 
   const manifest = await loadManifest(hivePath);
   if (!manifest) {
-    console.log(pc.red(`❌ No hive found at ${hivePath}`));
-    console.log(pc.gray('  The hive may have been deleted or moved.'));
+    console.log("❌ Invalid hive structure");
     return;
   }
 
-  const profiles = await getAllProfiles(hivePath);
-  const scanResult = await scanHive(hivePath);
+  // Find current profile
+  let currentProfile = "";
+  let isLeader = false;
+  try {
+    const configPath = path.join(process.cwd(), "hive-config.json");
+    const config = JSON.parse(await fs.readFile(configPath, "utf-8"));
+    currentProfile = config.profileName;
+    isLeader = config.isLeader;
+  } catch {}
 
-  console.log(pc.bold(pc.blue('\n=== Meta-Hive Status ===')));
-  console.log();
-  console.log(pc.bold('Hive:'), hivePath);
-  console.log(pc.bold('Version:'), manifest.version);
-  console.log(pc.bold('Created:'), new Date(manifest.createdAt).toLocaleString());
-  console.log();
+  console.log("=== Meta-Hive Status ===\n");
+  console.log(`Hive: ${hivePath}`);
+  console.log(`Version: ${manifest.version}`);
+  console.log(`\nProjects: ${manifest.projects.length}`);
+  console.log(`Profiles: ${manifest.profiles.length}`);
+  console.log(`\nLeader: ${manifest.leader}`);
 
-  // Leader
-  console.log(pc.bold('Leader:'), pc.cyan(manifest.leader));
-  if (config.profileName === manifest.leader) {
-    console.log(pc.gray('  ← You are the leader'));
+  if (currentProfile) {
+    console.log(`\nCurrent Profile: ${currentProfile}${isLeader ? " (leader)" : ""}`);
   }
-  console.log();
 
-  // Current profile
-  console.log(pc.bold('Current Profile:'), pc.cyan(config.profileName));
-  console.log(pc.bold('Active Project:'), config.activeProject || pc.gray('None'));
-  console.log();
+  console.log("\n--- Projects ---");
+  if (manifest.projects.length === 0) {
+    console.log("No projects yet. Use /new-project to create one.");
+  } else {
+    for (const project of manifest.projects) {
+      const statusIcon = project.status === "active" ? "🟢" : project.status === "paused" ? "🟡" : "✅";
+      console.log(`${statusIcon} ${project.name}: ${project.profiles.join(", ") || "no profiles"}`);
+    }
+  }
 
-  // Profiles
-  console.log(pc.bold(`Profiles (${manifest.profiles.length}):`));
+  console.log("\n--- Profiles ---");
   for (const profileName of manifest.profiles) {
-    const profile = profiles.find(p => p.name === profileName);
-    const isLeader = profileName === manifest.leader;
-    const isCurrent = profileName === config.profileName;
-
-    let line = `  ${isLeader ? '👑' : '🤖'} ${pc.cyan(profileName)}`;
-    if (isCurrent) line += pc.gray(' (you)');
-    if (isLeader) line += pc.gray(' (leader)');
-
-    console.log(line);
-
-    if (profile && profile.projects.length > 0) {
-      console.log(pc.gray(`     Projects: ${profile.projects.join(', ')}`));
-    }
+    const isLeaderProfile = profileName === manifest.leader;
+    const icon = isLeaderProfile ? "👑" : "🤖";
+    const current = profileName === currentProfile ? " (you)" : "";
+    console.log(`${icon} ${profileName}${current}`);
   }
-  console.log();
-
-  // Projects
-  if (scanResult.projects.length > 0) {
-    console.log(pc.bold(`Projects (${scanResult.projects.length}):`));
-    for (const project of scanResult.projects) {
-      console.log(`  📁 ${project}`);
-    }
-    console.log();
-  }
-
-  // Insights
-  if (scanResult.insights && scanResult.insights.length > 0) {
-    console.log(pc.bold('Insights:'));
-    for (const insight of scanResult.insights) {
-      console.log(`  💡 ${insight}`);
-    }
-    console.log();
-  }
-
-  // Last scan
-  console.log(pc.gray(`Last scan: ${new Date(scanResult.lastScan).toLocaleString()}`));
 }

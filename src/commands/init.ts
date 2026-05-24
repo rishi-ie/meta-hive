@@ -1,98 +1,66 @@
-import pc from 'picocolors';
-import { createManifest, addProfileToManifest } from '../hive/manifest.js';
-import { createProfile, getProfileDirectory } from '../profile/creator.js';
-import { updateConfig } from '../hive/config.js';
-import { fileExists, mkdir, writeMarkdownFile } from '../utils/fileSystem.js';
-import path from 'path';
+import fs from "node:fs/promises";
+import path from "node:path";
+import { loadManifest, initializeManifest } from "../hive/manifest.js";
 
-export interface InitOptions {
-  hiveName?: string;
-  profileName?: string;
-  isLeader?: boolean;
+interface InitOptions {
+  name: string;
+  profile: string;
 }
 
-export async function initHive(options: InitOptions = {}): Promise<void> {
-  const { hiveName = '.meta-hive', profileName = 'leader', isLeader = true } = options;
+export async function initCommand(options: InitOptions): Promise<void> {
+  const hivePath = path.resolve(options.name);
+  const profileName = options.profile;
 
-  const hivePath = path.resolve(hiveName);
+  console.log("🚀 Initializing Meta-Hive...\n");
 
   // Check if hive already exists
-  if (await fileExists(path.join(hivePath, '.hive-manifest.json'))) {
-    console.log(pc.yellow(`⚠ Hive already exists at ${hivePath}`));
-    console.log(pc.gray('  Use `/meta-hive join` to join an existing hive.'));
+  try {
+    await fs.access(hivePath);
+    console.log(`❌ Hive already exists at ${hivePath}`);
     return;
-  }
+  } catch {}
 
-  console.log(pc.blue('🚀 Initializing Meta-Hive...'));
-  console.log();
+  // Create hive structure
+  await fs.mkdir(path.join(hivePath, "leader", profileName), { recursive: true });
+  await fs.mkdir(path.join(hivePath, "profiles"), { recursive: true });
+  await fs.mkdir(path.join(hivePath, "projects"), { recursive: true });
+  await fs.mkdir(path.join(hivePath, "human"), { recursive: true });
+  await fs.mkdir(path.join(hivePath, "shared"), { recursive: true });
 
-  // Create hive directory structure
-  await mkdir(hivePath, { recursive: true });
-  await mkdir(path.join(hivePath, 'profiles'), { recursive: true });
-  await mkdir(path.join(hivePath, 'projects'), { recursive: true });
-  await mkdir(path.join(hivePath, 'human', 'feedback'), { recursive: true });
-  await mkdir(path.join(hivePath, 'shared', 'skills'), { recursive: true });
-  await mkdir(path.join(hivePath, 'shared', 'learnings'), { recursive: true });
-
-  // Create human profile template
-  const humanProfileContent = `# Human Profile
-
-## Name
-[Your name]
-
-## Preferences
-- [List your coding preferences]
-- [List your communication preferences]
-
-## Context
-[Any relevant context about you]
-
-## Notes
-[Additional notes for the hive]
-`;
-  await writeMarkdownFile(path.join(hivePath, 'human', 'profile.md'), humanProfileContent);
+  // Initialize manifest
+  await initializeManifest(hivePath, profileName);
 
   // Create leader profile
-  const leaderIdentity = {
-    name: profileName,
-    description: 'Leader of the Meta-Hive. Orchestrates all profiles and provides insights to the human.',
-    personality: 'Wise, organized, and helpful. Coordinates the hive\'s activities.',
-    capabilities: ['Meta capabilities', 'Hive orchestration', 'Cross-profile memory synthesis', 'Insight generation'],
-  };
+  await fs.writeFile(
+    path.join(hivePath, "leader", profileName, "identity.md"),
+    `# ${profileName}\n\nLeader of the Meta-Hive. Orchestrates all profiles and provides insights.`
+  );
+  await fs.writeFile(
+    path.join(hivePath, "leader", profileName, "projects.json"),
+    JSON.stringify([])
+  );
+  await fs.writeFile(
+    path.join(hivePath, "leader", profileName, "system-prompt.md"),
+    "You are the Hive Leader. You monitor all projects and profiles, coordinate work, and provide the human with insights about the hive's activities."
+  );
 
-  await createProfile({
-    hivePath,
-    profileName,
-    isLeader: true,
-    identity: leaderIdentity,
-  });
+  // Create human profile
+  await fs.writeFile(
+    path.join(hivePath, "human", "profile.md"),
+    `# Human Profile\n\nThe human user of this hive. Owner of all projects and profiles.`
+  );
 
-  // Create manifest
-  const manifest = await createManifest(hivePath, profileName);
+  // Create shared memory
+  await fs.writeFile(
+    path.join(hivePath, "shared", "memory.md"),
+    "# Hive Memory\n\nShared knowledge across all profiles.\n"
+  );
 
-  // Save config
-  await updateConfig({
-    hivePath,
-    profileName,
-    isLeader,
-    activeProject: null,
-  });
-
-  console.log(pc.green('✅ Hive created successfully!'));
-  console.log();
-  console.log(pc.bold('Hive Structure:'));
-  console.log(`  ${pc.gray(hivePath)}/`);
-  console.log(`    ├── .hive-manifest.json`);
-  console.log(`    ├── ${profileName}/ (leader)`);
-  console.log(`    ├── profiles/`);
-  console.log(`    ├── projects/`);
-  console.log(`    ├── human/`);
-  console.log(`    └── shared/`);
-  console.log();
-  console.log(pc.green(`Leader profile: ${profileName}`));
-  console.log();
-  console.log(pc.cyan('Next steps:'));
-  console.log('  1. Open this folder in Obsidian to view the hive');
-  console.log('  2. Create new profiles with: meta-hive join <path>');
-  console.log('  3. Run: meta-hive status');
+  console.log("✅ Hive created successfully!\n");
+  console.log(`Hive: ${hivePath}`);
+  console.log(`Leader: ${profileName}`);
+  console.log("\nNext steps:");
+  console.log("1. /new-project <name> - Create a project with dedicated profile");
+  console.log("2. /dashboard - View all projects and profiles");
+  console.log("3. /projects - List all projects");
 }

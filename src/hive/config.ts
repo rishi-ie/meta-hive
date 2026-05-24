@@ -1,42 +1,51 @@
-import { HiveConfig } from '../types/index.js';
-import { readJsonFile, writeJsonFile, fileExists } from '../utils/fileSystem.js';
-import path from 'path';
+import { readJsonFile, writeJsonFile, findHivePath } from "../utils/fileSystem.js";
+import path from "path";
 
-const CONFIG_FILENAME = 'hive-config.json';
+const CONFIG_FILE = "hive-config.json";
 
-export async function getConfigPath(): Promise<string> {
-  return path.join(process.cwd(), CONFIG_FILENAME);
+export interface ProfileConfig {
+  profileName: string;
+  hivePath: string;
+  isLeader: boolean;
+  projects: string[];
+  activeProject: string | null;
 }
 
-export async function loadConfig(): Promise<HiveConfig | null> {
-  const configPath = await getConfigPath();
-  if (!(await fileExists(configPath))) {
+export async function loadProfileConfig(cwd: string): Promise<ProfileConfig | null> {
+  const configPath = path.join(cwd, CONFIG_FILE);
+  try {
+    return await readJsonFile(configPath) as ProfileConfig;
+  } catch {
     return null;
   }
-  return readJsonFile<HiveConfig>(configPath);
 }
 
-export async function saveConfig(config: HiveConfig): Promise<void> {
-  const configPath = await getConfigPath();
+export async function saveProfileConfig(cwd: string, config: ProfileConfig): Promise<void> {
+  const configPath = path.join(cwd, CONFIG_FILE);
   await writeJsonFile(configPath, config);
 }
 
-export async function updateConfig(updates: Partial<HiveConfig>): Promise<HiveConfig> {
-  const currentConfig = await loadConfig();
-  const updatedConfig: HiveConfig = {
-    hivePath: updates.hivePath ?? currentConfig?.hivePath ?? '',
-    profileName: updates.profileName ?? currentConfig?.profileName ?? '',
-    isLeader: updates.isLeader ?? currentConfig?.isLeader ?? false,
-    activeProject: updates.activeProject ?? currentConfig?.activeProject ?? null,
-  };
-  await saveConfig(updatedConfig);
-  return updatedConfig;
+export async function setActiveProject(cwd: string, projectName: string): Promise<boolean> {
+  const config = await loadProfileConfig(cwd);
+  if (!config) return false;
+
+  config.activeProject = projectName;
+  await saveProfileConfig(cwd, config);
+  return true;
 }
 
-export async function clearConfig(): Promise<void> {
-  const configPath = await getConfigPath();
-  if (await fileExists(configPath)) {
-    const { unlink } = await import('fs/promises');
-    await unlink(configPath);
-  }
+export async function getHivePathFromConfig(cwd: string): Promise<string | null> {
+  const config = await loadProfileConfig(cwd);
+  if (!config?.hivePath) return null;
+
+  const hivePath = path.isAbsolute(config.hivePath)
+    ? config.hivePath
+    : path.join(cwd, config.hivePath);
+
+  return hivePath;
+}
+
+export async function getActiveProject(cwd: string): Promise<string | null> {
+  const config = await loadProfileConfig(cwd);
+  return config?.activeProject || null;
 }

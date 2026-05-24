@@ -1,72 +1,122 @@
-import pc from 'picocolors';
-import { fileExists, mkdir, writeJsonFile, listDirectories } from '../utils/fileSystem.js';
-import { loadConfig } from '../hive/config.js';
-import path from 'path';
+import fs from "node:fs/promises";
+import path from "node:path";
+import { loadManifest } from "../hive/manifest.js";
+import { findHivePath } from "../utils/fileSystem.js";
 
-export interface ProjectOptions {
-  hivePath: string;
-  projectName: string;
-  profileName?: string;
+interface ProjectSubCommand {
+  add: (name: string, options?: { profiles?: string[] }) => Promise<void>;
+  list: () => Promise<void>;
+  assign: (project: string, profiles: string[]) => Promise<void>;
 }
 
-export async function createProject(options: ProjectOptions): Promise<void> {
-  const { hivePath, projectName } = options;
-
-  const projectsDir = path.join(hivePath, 'projects', projectName);
-
-  if (await fileExists(projectsDir)) {
-    console.log(pc.yellow(`⚠ Project "${projectName}" already exists.`));
-    return;
-  }
-
-  // Create project directory
-  await mkdir(path.join(projectsDir, 'context'), { recursive: true });
-  await mkdir(path.join(projectsDir, 'memory'), { recursive: true });
-
-  // Create project metadata
-  const metadata = {
-    name: projectName,
-    createdAt: new Date().toISOString(),
-    createdBy: options.profileName || 'unknown',
-  };
-  await writeJsonFile(path.join(projectsDir, 'project.json'), metadata);
-
-  console.log(pc.green(`✅ Project "${projectName}" created successfully!`));
-  console.log(`  Location: ${projectsDir}`);
-}
-
-export async function listProjects(hivePath: string): Promise<string[]> {
-  const projectsDir = path.join(hivePath, 'projects');
-  return listDirectories(projectsDir);
-}
-
-export async function showProjects(): Promise<void> {
-  const config = await loadConfig();
-
-  if (!config?.hivePath) {
-    console.log(pc.red('❌ Not connected to any hive.'));
-    return;
-  }
-
-  const projects = await listProjects(config.hivePath);
-
-  console.log(pc.bold(pc.blue('\n=== Projects ===')));
-  console.log();
-
-  if (projects.length === 0) {
-    console.log(pc.gray('No projects yet. Create one with: meta-hive project add <name>'));
-    return;
-  }
-
-  for (const project of projects) {
-    console.log(`  📁 ${pc.cyan(project)}`);
-
-    // List profiles working on this project
-    const profilesDir = path.join(config.hivePath, 'projects', project);
-    const profiles = await listDirectories(profilesDir);
-
-    if (profiles.length > 0) {
-      console.log(pc.gray(`     Profiles: ${profiles.join(', ')}`));
+export const projectCommand: ProjectSubCommand = {
+  async add(name: string, options?: { profiles?: string[] }) {
+    const hivePath = await findHivePath(process.cwd());
+    if (!hivePath) {
+      console.log("❌ Not in a hive.");
+      return;
     }
-  }
-}
+
+    const manifest = await loadManifest(hivePath);
+    if (!manifest) {
+      console.log("❌ Invalid hive structure");
+      return;
+    }
+
+    // Check if project exists
+    if (manifest.projects.find(p => p.name === name)) {
+      console.log(`❌ Project "${name}" already exists`);
+      return;
+    }
+
+    // Create project directory
+    const projectPath = path.join(hivePath, "projects", name);
+    await fs.mkdir(projectPath, { recursive: true });
+
+    await fs.writeFile(
+      path.join(projectPath, "context.md"),
+      `# ${name}\n\nProject workspace.\n`
+    );
+
+    // Add to manifest
+    manifest.projects.push({
+      name,
+      profiles: options?.profiles || [],
+      created: new Date().toISOString(),
+      status: "active",
+    });
+
+    for (const profileName of (options?.profiles || [])) {
+      if (!manifest.profiles.includes(profileName)) {
+        manifest.profiles.push(profileName);
+      }
+    }
+
+    await fs.writeFile(
+      path.join(hivePath, ".hive-manifest.json"),
+      JSON.stringify(manifest, null, 2)
+    );
+
+    console.log(`✅ Project "${name}" created!`);
+    if (options?.profiles?.length) {
+      console.log(`   Assigned: ${options.profiles.join(", ")}`);
+    }
+  },
+
+  async list() {
+    const hivePath = await findHivePath(process.cwd());
+    if (!hivePath) {
+      console.log("❌ Not in a hive.");
+      return;
+    }
+
+    const manifest = await loadManifest(hivePath);
+    if (!manifest || manifest.projects.length === 0) {
+      console.log("No projects yet.");
+      return;
+    }
+
+    console.log("=== Projects ===\n");
+    for (const project of manifest.projects) {
+      const statusIcon = project.status === "active" ? "🟢" : project.status === "paused" ? "🟡" : "✅";
+      console.log(`${statusIcon} ${project.name}`);
+      console.log(`   Profiles: ${project.profiles.join(", ") || "none"}\n`);
+    }
+  },
+
+  async assign(projectName: string, profileNames: string[]) {
+    const hivePath = await findHivePath(process.cwd());
+    if (!hivePath) {
+      console.log("❌ Not in a hive.");
+      return;
+    }
+
+    const manifest = await loadManifest(hivePath);
+    if (!manifest) {
+      console.log("❌ Invalid hive structure");
+      return;
+    }
+
+    const project = manifest.projects.find(p => p.name === projectName);
+    if (!project) {
+      console.log(`❌ Project "${projectName}" not found`);
+      return;
+    }
+
+    for (const profileName of profileNames) {
+      if (!project.profiles.includes(profileName)) {
+        project.profiles.push(profileName);
+      }
+      if (!manifest.profiles.includes(profileName)) {
+        manifest.profiles.push(profileName);
+      }
+    }
+
+    await fs.writeFile(
+      path.join(hivePath, ".hive-manifest.json"),
+      JSON.stringify(manifest, null, 2)
+    );
+
+    console.log(`✅ Assigned ${profileNames.join(", ")} to "${projectName}"`);
+  },
+};
